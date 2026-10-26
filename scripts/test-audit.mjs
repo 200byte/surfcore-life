@@ -63,7 +63,7 @@ const tests = [
   // 平台启动开关：QQ/B站 各自「是否启动」的唯一真相 + 旧 bridge.autoStart 迁移
   // （2026-10-24 用户要求；只碰临时 DSH_HOME，不启停真实桥接）。
   'test-platform-start.mjs',
-  // B站 会话权限：workspace-write 在 C:\Users\<用户名> 起不了命令 → 自动切 danger-full-access。
+  // B站 会话权限：workspace-write 在 C:\Users\Mieksido 起不了命令 → 自动切 danger-full-access。
   'test-scheduler-permission.mjs',
   'test-token-economy.mjs', 'test-qq-model-view.mjs', 'test-qq-preset-contract.mjs',
   'test-reply-wait.mjs', 'test-preset-prompt.mjs', 'test-role-card.mjs',
@@ -150,6 +150,8 @@ const tests = [
   // 语音包默认安装源（2026-10-26）：必须从仓库位置解析、不许硬编码盘符，
   // 且 8765/8767 两个端口与启停脚本名不能漂移（语音路由全靠它们）。
   'test-voice-packs-default.mjs',
+  // 版本号单一真相：根/插件 package.json 一致、无硬编码、CHANGELOG 有当前版本。
+  'test-version.mjs',
 ];
 let failed = 0;
 for (const test of tests) {

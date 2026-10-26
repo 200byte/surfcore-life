@@ -416,7 +416,7 @@ window.__ModuleLoader__.load({
           h("label", { className: "qbw-admin-field" },
             h("span", null, "管理员 QQ"),
             h("input", {
-              className: "qbw-input", inputMode: "numeric", placeholder: "例如 1000000001",
+              className: "qbw-input", inputMode: "numeric", placeholder: "例如 3287064288",
               value: value.qq ?? "",
               onChange: (e) => set("qq", digits(e.target.value)),
             }),
@@ -424,7 +424,7 @@ window.__ModuleLoader__.load({
           h("label", { className: "qbw-admin-field" },
             h("span", null, "管理员 B站 UID（mid）"),
             h("input", {
-              className: "qbw-input", inputMode: "numeric", placeholder: "例如 10000002",
+              className: "qbw-input", inputMode: "numeric", placeholder: "例如 37634003",
               value: value.biliMid ?? "",
               onChange: (e) => set("biliMid", digits(e.target.value)),
             }),
@@ -1022,7 +1022,7 @@ window.__ModuleLoader__.load({
         F("fishGuard.failCooldownMinutes", "风控失败冷却（分钟）", "默认 60；遇到 -509/12015 等码自动停手", "number", { min: 1 }),
       ]},
       { group: "B站 会话权限", note: "只影响她自己的 DSH 会话（bili-whale-*），不影响 QQ 桥接；改完下一次 tick 生效", fields: [
-        F("agent.sandbox", "会话权限", "danger-full-access = 定时醒来能跑 bili.mjs（推荐；C:\\Users\\<用户名> 用 workspace-write 会因 WRITE_OWNER 起不了命令）；workspace-write = 更安全但可能什么都跑不了", "select", {
+        F("agent.sandbox", "会话权限", "danger-full-access = 定时醒来能跑 bili.mjs（推荐；C:\\Users\\Mieksido 用 workspace-write 会因 WRITE_OWNER 起不了命令）；workspace-write = 更安全但可能什么都跑不了", "select", {
           options: [["danger-full-access", "完全访问（推荐，能跑工具）"], ["workspace-write", "仅工作区（更安全，可能跑不了命令）"]],
         }),
       ]},
@@ -1579,7 +1579,7 @@ window.__ModuleLoader__.load({
           minutesRow("失败后多久重试（分钟）", "retryMs", 15, "投递失败 / 回合报错", { min: 1, max: 360 }),
           numberRow("最多重试几次", "maxAttempts", 3, "连续失败后回到正常间隔", { min: 1, max: 10 }),
           numberRow("提示词硬上限（字符）", "promptMaxChars", 16000, "超出会截中间、保留头尾指令", { min: 4000, max: 30000, step: 1000 }),
-          textRow("找哪个 QQ（留空 = ownerQQ）", "ownerUin", "", "必须同时在 allow.private，且与小肥鱼互为好友", "1000000001")),
+          textRow("找哪个 QQ（留空 = ownerQQ）", "ownerUin", "", "必须同时在 allow.private，且与小肥鱼互为好友", "3287064288")),
 
         h("div", { className: "qbw-actions", style: { borderTop: "none", marginTop: "8px", paddingTop: "0", flexWrap: "wrap" } },
           h(Btn, { kind: "qbw-btn2", onClick: doPreview, disabled: !!busy }, busy === "purpose-preview" ? "生成中…" : "预览这一轮（不发）"),
@@ -4384,7 +4384,7 @@ window.__ModuleLoader__.load({
         h("div", { className: "qbw-head" },
           h("p", { className: "qbw-kicker" }, "DeepSeek Harness · SurfCore"),
           h("h3", { className: "qbw-title" }, "SurfCore",
-            h("span", { className: "qbw-badge" }, `v${overview?.version ?? "0.1.0"}`),
+            h("span", { className: "qbw-badge" }, `v${overview?.version ?? "—"}`),
             h("span", { className: "qbw-dots" },
               h(StatusDot, { ok: qqStart && bridge.running && bridge.ok, warn: qqStart && bridge.running && !bridge.ok }, qqStart ? "QQ" : "QQ 关"),
               h(StatusDot, { ok: biliStart && Boolean(biliStatus.available), warn: biliStart && Boolean(biliStatus.enabled) }, biliStart ? "B站" : "B站 关"),

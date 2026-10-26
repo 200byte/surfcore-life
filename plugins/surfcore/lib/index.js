@@ -84,7 +84,20 @@ import { fishGuardStateSummary } from '../tools/lib/fish-guard.mjs';
 import { summarizeQqFishGuard } from './qq-fish-guard.js';
 import { applySessionPermission } from './scheduler.js';
 
-const VERSION = '0.1.0';
+// 版本号只有一个来源：仓库根 package.json（与 plugins/surfcore/package.json 必须一致，
+// 由 scripts/version.mjs check 与 test-version.mjs 把关）。
+// 这里不做硬编码，避免"改了一处忘了另一处"。
+function readOwnVersion() {
+  try {
+    const here = path.dirname(fileURLToPath(import.meta.url)); // plugins/surfcore/lib
+    const rootPkg = path.resolve(here, '../../../package.json');
+    return JSON.parse(fs.readFileSync(rootPkg, 'utf8')).version || '0.0.0-dev';
+  } catch {
+    return '0.0.0-dev';
+  }
+}
+
+const VERSION = readOwnVersion();
 const API_PREFIX = '/dsh-surfcore/api';
 const EXT_PREFIX = '/dsh-surfcore/ext';
 const HERE = path.dirname(fileURLToPath(import.meta.url));

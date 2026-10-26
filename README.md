@@ -71,6 +71,8 @@
 
 ### 2.2 五步装好
 
+> 第一次装、或卡在某一步：看 [INSTALL.md](docs/guides/INSTALL.md)（手把手，含 SnowLuma 配置、白名单、排错表）。
+
 ```bash
 # 1) 取代码
 git clone https://github.com/Mieksido/surfcore.git
