@@ -34,7 +34,7 @@ git --version    # 需要能输出 git version 2.x
 | 需要 | 怎么确认 |
 | --- | --- |
 | **Windows 10/11** | 设置 → 系统 → 关于 |
-| **DeepSeek Harness（DSH）** | 能打开 DSH 的 Web 界面；版本需 **0.2.1-rc.2** |
+| **DeepSeek Harness（DSH）** | 能打开 DSH 的 Web 界面；版本需 **0.2.1-rc.2 或更新（rc.3 已能安装，功能未完整回归）** |
 
 少哪个装哪个：
 

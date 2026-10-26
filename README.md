@@ -7,8 +7,8 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.4.2` |
-| 目标 DSH | `0.2.1-rc.2`（`npm run verify:adaptation` 可逐项复核） |
+| 版本 | `0.4.3` |
+| 目标 DSH | `0.2.1-rc.2 或更新（rc.3 已能安装，功能未完整回归）`（`npm run verify:adaptation` 可逐项复核） |
 | 平台 | Windows（沙箱 ACL / SnowLuma / 启动脚本都与它绑定） |
 | 许可 | MIT（SnowLuma 是第三方专有运行时，**不随本仓库分发**） |
 | 配套仓库 | [surfvoicelocal](https://github.com/Mieksido/surfvoicelocal) · [surfvoicecloud](https://github.com/Mieksido/surfvoicecloud) · [surfpet](https://github.com/Mieksido/surfpet) |
@@ -31,7 +31,7 @@ node scripts/setup-dsh.mjs      # 自动判断 DSH 用的 profile，不用填
 
 > 不想敲命令：`powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/Mieksido/surfcore/main/scripts/bootstrap.ps1 | iex"`
 
-前置：Windows + Node ≥22.13 + DSH 0.2.1-rc.2 + SnowLuma（第三方，需自己装并扫码）。详见 [INSTALL.md](docs/guides/INSTALL.md)。
+前置：Windows + Node ≥22.13 + DSH 0.2.1-rc.2 或更新（rc.3 已能安装，功能未完整回归） + SnowLuma（第三方，需自己装并扫码）。详见 [INSTALL.md](docs/guides/INSTALL.md)。
 
 ---
 
@@ -78,7 +78,7 @@ node scripts/setup-dsh.mjs      # 自动判断 DSH 用的 profile，不用填
 | --- | --- | --- |
 | Windows | 10/11（沙箱 ACL 与 `.bat` 启动器按 Windows 写） | ✅ |
 | Node.js | **≥ 22.13**（`node -v` 确认） | ✅ |
-| DeepSeek Harness（DSH） | **`0.2.1-rc.2`**，能正常打开 Web GUI | ✅ |
+| DeepSeek Harness（DSH） | **`0.2.1-rc.2 或更新（rc.3 已能安装，功能未完整回归）`**，能正常打开 Web GUI | ✅ |
 | SnowLuma2 | 第三方 QQ 运行时，**自己去官方 Releases 下载**并扫码登录 | ✅（只收 QQ 才需要） |
 | 语音引擎 | 两个配套仓库之一（本地/云端） | ⭕ 可选 |
 | 桌宠 | 配套仓库 `surfpet` | ⭕ 可选 |

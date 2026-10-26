@@ -115,8 +115,17 @@ async function main() {
   }
 
   step(3, '安装依赖（npm install）');
-  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const inst = run(npm, ['install', '--no-audit', '--no-fund'], { cwd: TARGET, timeout: 900000 });
+  const npmProbe = run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['-v']);
+  const bundledPnpm = path.join(process.env.USERPROFILE || os.homedir(), '.dsh', 'dsh-runtimes', 'dsh-primary-runtime', 'dependencies', 'pnpm', 'bin', 'pnpm.cjs');
+  let inst;
+  if (npmProbe.ok) {
+    inst = run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--no-audit', '--no-fund'], { cwd: TARGET, timeout: 900000 });
+  } else if (fs.existsSync(bundledPnpm)) {
+    say('  没找到 npm，改用 DSH 自带的 pnpm');
+    inst = run(process.execPath, [bundledPnpm, 'install'], { cwd: TARGET, timeout: 900000 });
+  } else {
+    inst = { ok: false, out: '没有 npm 也没有 DSH 自带的 pnpm' };
+  }
   if (inst.ok) ok('依赖安装完成');
   else { bad(`依赖安装失败：\n${inst.out.slice(-800)}`); say('        常见原因：网络代理、npm 源。可以试：npm config set registry https://registry.npmmirror.com'); process.exit(1); }
 

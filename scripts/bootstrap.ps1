@@ -29,11 +29,23 @@ Say '=============================================='
 # ── 1. 环境 ────────────────────────────────────────────────
 Step 1 '检查环境'
 $node = Get-Command node -ErrorAction SilentlyContinue
-if (-not $node) {
-  Bad '没找到 Node.js。请先装 Node 22.13+： https://nodejs.org/  装完重开 PowerShell'
+$nodeExe = if ($node) { 'node' } else { '' }
+$runtimeRoot = Join-Path $env:USERPROFILE '.dsh'
+$runtimeRoot = Join-Path $runtimeRoot 'dsh-runtimes'
+$runtimeRoot = Join-Path $runtimeRoot 'dsh-primary-runtime'
+$runtimeRoot = Join-Path $runtimeRoot 'dependencies'
+$bundledNode = Join-Path (Join-Path (Join-Path $runtimeRoot 'node') 'bin') 'node.exe'
+$bundledPnpm = Join-Path (Join-Path (Join-Path $runtimeRoot 'pnpm') 'bin') 'pnpm.cjs'
+if (-not $nodeExe -and (Test-Path $bundledNode)) {
+  $nodeExe = $bundledNode
+  Bad 'PATH 里没有 node，改用 DSH 自带的 Node'
+  Ok $bundledNode
+}
+if (-not $nodeExe) {
+  Bad '没找到 Node.js（DSH 自带运行时也没有）。请装 Node 22.13+： https://nodejs.org/'
   return
 }
-$nodeVer = (& node -v).TrimStart('v')
+$nodeVer = (& $nodeExe -v).TrimStart('v')
 $parts = $nodeVer.Split('.')
 $okNode = ([int]$parts[0] -gt 22) -or (([int]$parts[0] -eq 22) -and ([int]$parts[1] -ge 13))
 if ($okNode) { Ok "Node v$nodeVer" } else { Bad "Node v$nodeVer 太老（需要 >= 22.13）"; return }
@@ -89,7 +101,16 @@ if (Test-Path (Join-Path $Dir 'package.json')) {
 Step 3 '安装依赖（npm install）'
 Push-Location $Dir
 try {
-  & npm install --no-audit --no-fund
+  $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
+  if ($npmCmd) {
+    & npm install --no-audit --no-fund
+  } elseif (Test-Path $bundledPnpm) {
+    Bad '没有 npm，改用 DSH 自带的 pnpm'
+    & $nodeExe $bundledPnpm install
+  } else {
+    Bad '没有 npm 也没有 pnpm，请装 Node 22.13+ 后重试'
+    return
+  }
   if ($LASTEXITCODE -ne 0) {
     Bad '依赖安装失败。可试：npm config set registry https://registry.npmmirror.com'
     return
@@ -99,10 +120,10 @@ try {
 
 # ── 4. 装进 DSH ───────────────────────────────────────────
 Step 4 '装进 DSH（注册插件 / 预设 / MCP）'
-$profile = (& node (Join-Path $Dir 'scripts\detect-profile.mjs')).Trim()
+$profile = (& $nodeExe (Join-Path $Dir 'scripts\detect-profile.mjs')).Trim()
 if (-not $profile) { $profile = 'web' }
 Say "  使用 profile：$profile"
-& node (Join-Path $Dir 'scripts\setup-dsh.mjs') $profile
+& $nodeExe (Join-Path $Dir 'scripts\setup-dsh.mjs') $profile
 if ($LASTEXITCODE -ne 0) { Bad "注册失败：可在 $Dir 下手动跑 node scripts\setup-dsh.mjs $profile" }
 else { Ok '已注册' }
 
