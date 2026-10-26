@@ -123,6 +123,10 @@ async function main() {
   step(4, '装进 DSH（注册预设 / MCP / 插件）');
   let profile = process.env.DSH_PROFILE || '';
   if (!profile) {
+    const dp = run(process.execPath, [path.join(TARGET, 'scripts', 'detect-profile.mjs')], { cwd: TARGET });
+    if (dp.ok) profile = dp.out.trim();
+  }
+  if (!profile) {
     if (profiles.includes('web')) profile = 'web';
     else if (profiles.length === 1) profile = profiles[0];
     else if (profiles.length > 1) profile = await ask(`你有多个 DSH profile（${profiles.join('、')}），用哪个？`, profiles[0]);

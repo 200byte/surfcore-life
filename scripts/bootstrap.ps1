@@ -99,12 +99,8 @@ try {
 
 # ── 4. 装进 DSH ───────────────────────────────────────────
 Step 4 '装进 DSH（注册插件 / 预设 / MCP）'
-$profile = $env:DSH_PROFILE
-if (-not $profile) {
-  if ($profiles -contains 'web') { $profile = 'web' }
-  elseif ($profiles.Count -eq 1) { $profile = $profiles[0] }
-  else { $profile = 'web' }
-}
+$profile = (& node (Join-Path $Dir 'scripts\detect-profile.mjs')).Trim()
+if (-not $profile) { $profile = 'web' }
 Say "  使用 profile：$profile"
 & node (Join-Path $Dir 'scripts\setup-dsh.mjs') $profile
 if ($LASTEXITCODE -ne 0) { Bad "注册失败：可在 $Dir 下手动跑 node scripts\setup-dsh.mjs $profile" }

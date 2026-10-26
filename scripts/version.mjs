@@ -184,6 +184,14 @@ function bump(kind) {
   plugin.version = next;
   writeJson(PLUGIN_PKG, plugin);
 
+  // README 顶部版本也要跟着 bump，否则 test-version 会红（文档漂移）。
+  const readmeFile = path.join(ROOT, 'README.md');
+  if (fs.existsSync(readmeFile)) {
+    const readme = fs.readFileSync(readmeFile, 'utf8');
+    const updated = readme.replace(/(\|\s*版本\s*\|\s*`)[^`]+(`)/, `$1${next}$2`);
+    if (updated !== readme) fs.writeFileSync(readmeFile, updated, 'utf8');
+  }
+
   if (fs.existsSync(CHANGELOG)) {
     const log = fs.readFileSync(CHANGELOG, 'utf8');
     if (!log.includes(`## [${next}]`)) {

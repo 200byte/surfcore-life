@@ -7,7 +7,7 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.4.1` |
+| 版本 | `0.4.2` |
 | 目标 DSH | `0.2.1-rc.2`（`npm run verify:adaptation` 可逐项复核） |
 | 平台 | Windows（沙箱 ACL / SnowLuma / 启动脚本都与它绑定） |
 | 许可 | MIT（SnowLuma 是第三方专有运行时，**不随本仓库分发**） |
@@ -24,7 +24,7 @@
 git clone --depth 1 https://github.com/Mieksido/surfcore.git
 cd surfcore
 npm install
-node scripts/setup-dsh.mjs web      # profile 名按你 DSH 的改（默认 web）
+node scripts/setup-dsh.mjs      # 自动判断 DSH 用的 profile，不用填
 ```
 
 重启 DSH → 设置 → SurfCore → **诊断 → 一键安装（全部）**（自动发现 SnowLuma、写白名单、起桥接）。

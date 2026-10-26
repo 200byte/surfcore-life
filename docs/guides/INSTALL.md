@@ -131,6 +131,9 @@ copy config.example.json config.json
 node scripts/setup-dsh.mjs
 ```
 
+> 不用填 profile：脚本会自己判断（`DSH_PROFILE` → 正在运行的 DSH 进程 → 最近使用过的那套）。
+> 想强制指定就加参数：`node scripts/setup-dsh.mjs desktop`。
+
 它做三件事（可重复跑，幂等）：
 
 1. 往 DSH profile 里插 `qq-chat` / `qq-chat-v2` 两条 agent preset；

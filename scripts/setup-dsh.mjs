@@ -25,7 +25,18 @@ import { PRESETS, buildPatches, patchFileFor } from './build-agent-preset-patche
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
 const DSH_HOME = process.env.DSH_HOME || path.join(os.homedir(), '.dsh');
-const PROFILE = process.argv[2] || 'web';
+// 没传 profile 就自动判断（环境变量 → 正在运行的 DSH 进程 → 最近使用 → 兜底 web）。
+// 用动态 import + 兜底：这个脚本偶尔会被单独复制到别处跑（审计台就在这么测），
+// 没有 detect-profile.mjs 时不能直接崩。
+let PROFILE = process.argv[2] || '';
+if (!PROFILE) {
+  try {
+    const { detectProfile } = await import('./detect-profile.mjs');
+    PROFILE = await detectProfile();
+  } catch {
+    PROFILE = String(process.env.DSH_PROFILE ?? '').trim() || 'web';
+  }
+}
 
 // A profile is a directory name, never a path (same boundary as DSH itself).
 if (PROFILE === '.' || PROFILE === '..' || PROFILE === 'node_modules'
