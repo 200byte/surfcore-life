@@ -3605,7 +3605,12 @@ window.__ModuleLoader__.load({
             ? `✓ 已补齐：${changed.join("、")}${r.restartRequired ? "（重启 DSH 生效）" : ""}`
             : "✓ 没有需要补的");
           await load();
-        } catch (e) { toast(`✗ ${e.message}`); } finally { setBusy(""); }
+        } catch (e) {
+          const msg = /未知 action/.test(String(e.message))
+            ? "后端还是旧版本：关掉 DSH 再开一次，让插件加载新代码"
+            : e.message;
+          toast(`✗ ${msg}`);
+        } finally { setBusy(""); }
       };
       const backupAll = async () => {
         setBusy("backup");
