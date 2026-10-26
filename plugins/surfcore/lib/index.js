@@ -20,13 +20,15 @@ import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
 import { execFile, spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import {
   ALIGN_FILE, BACKUP_DIR, BILI_AI_DIR, BILI_ALIGNMENT_FILE, BILI_CONFIG, BILI_CRED, BILI_DIR, BILI_MJS,
   BILI_TOOLS_DIR, DSH_HOME, EXTENSIONS_DIR, MEMORY_DIR, PLUGIN_ROOT, PLUGIN_LOG, QQ_ALIGNMENT_BRIEF,
-  QQ_CONFIG, QQBOT_ROOT, STATE_DIR, ensureDirs, findNodeExe, maskPath,
+  QQ_CONFIG, QQBOT_ROOT, STATE_DIR, UNIFIED_FILE, ensureDirs, findNodeExe, maskPath,
 } from './paths.js';
 import { resolvePersonaFile } from './persona.js';
+import { buildInstallChecks, installOk, planDoctorFix } from './doctor.js';
 import {
   autoSnapshot, beforeSwitchSnapshot, characterDetail, characterOverview, createCharacterFromPayload,
   deleteCharacter, manualSnapshot, migrateIfNeeded, restoreCharacterSnapshot, switchToCharacter,
@@ -1155,6 +1157,61 @@ export function apply(ctx) {
   }
 
   // ── 诊断 / 备份 ─────────────────────────────────────────────────────────
+  // ── 新手体检（只读）＋ 一键配置（只写"缺失项"，绝不覆盖已有值）────────────
+  // 目标：新人装完点一下就知道"还差什么、在哪补"，不用去翻文档。
+  function dshProfileWithSurfcore() {
+    const root = path.join(DSH_HOME, 'profiles');
+    let names = [];
+    try { names = fs.readdirSync(root).filter((n) => { try { return fs.statSync(path.join(root, n)).isDirectory(); } catch { return false; } }); } catch { return ''; }
+    for (const name of names) {
+      try {
+        const patch = fs.readFileSync(path.join(root, name, 'cordis.patch.yml'), 'utf8');
+        if (patch.includes('surfcore')) return name;
+      } catch {}
+    }
+    return '';
+  }
+
+  async function installChecks() {
+    const all = readAll();
+    const qqCfg = readQqConfig().config ?? {};
+    const snow = qqCfg.snowluma ?? {};
+    let snowState = { state: 'unknown', hint: '' };
+    try { snowState = await diagnoseSnowLuma(snow); } catch {}
+    const bridgeSrc = path.join(QQBOT_ROOT, 'src', 'bridge.js');
+    return buildInstallChecks({
+      nodeVersion: process.versions.node,
+      hasUnified: readUnified().hasUserFile,
+      unifiedMasked: maskPath(UNIFIED_FILE),
+      ownerQQ: String(all.unified?.admin?.qq ?? '').trim(),
+      groups: Array.isArray(qqCfg.allow?.groups) ? qqCfg.allow.groups : [],
+      privates: Array.isArray(qqCfg.allow?.private) ? qqCfg.allow.private : [],
+      snow,
+      snowState,
+      bridgeSrc: fs.existsSync(bridgeSrc),
+      bridgeMasked: maskPath(bridgeSrc),
+      profile: dshProfileWithSurfcore(),
+      token: String(qqCfg.consoleToken ?? '').trim(),
+    });
+  }
+
+  function doctorFix(body) {
+    const all = readAll();
+    const qqCfg = readQqConfig().config ?? {};
+    const actions = planDoctorFix({
+      hasUnified: readUnified().hasUserFile,
+      hasToken: Boolean(String(qqCfg.consoleToken ?? '').trim()),
+      ownerQQ: body?.ownerQQ,
+      currentOwnerQQ: all.unified?.admin?.qq,
+    });
+    for (const action of actions) {
+      if (action.startsWith('生成统一配置')) saveUnified({});
+      else if (action.startsWith('生成控制台令牌')) saveQqConfig({ consoleToken: randomUUID().replace(/-/g, '') });
+      else if (action.startsWith('写入管理员 QQ')) saveUnified({ admin: { qq: String(body.ownerQQ).trim() } });
+    }
+    return actions;
+  }
+
   async function handleDiagnostics(req, res) {
     if (req.method === 'GET') {
       const checks = [];
@@ -1182,10 +1239,17 @@ export function apply(ctx) {
       add('QQ 桥接', bridge.running, bridge.running ? `端口 ${bridge.port}` : '未运行');
       const all = readAll();
       add('隐私策略', PRIVACY_POLICY_VERSION >= 3, `v${PRIVACY_POLICY_VERSION}（私信/密钥/PII 一律不跨平台）`);
-      json(res, 200, { ok: checks.every((c) => c.ok || c.name.includes('可选')), checks, bridge, paths: pathSummary() });
+      const install = await installChecks();
+      const allChecks = [...install, ...checks];
+      json(res, 200, { ok: allChecks.every((c) => c.ok || c.name.includes('可选')), checks: allChecks, installOk: installOk(install), bridge, paths: pathSummary() });
       return;
     }
     const body = JSON.parse(await readBody(req) || '{}');
+    if (body.action === 'doctor-fix') {
+      const changed = doctorFix(body);
+      json(res, 200, { ok: true, changed, restartRequired: changed.length > 0 });
+      return;
+    }
     if (body.action === 'backup') {
       const created = [];
       for (const [label, file] of [

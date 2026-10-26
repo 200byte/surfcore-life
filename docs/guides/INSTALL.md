@@ -213,7 +213,10 @@ node scripts\fetch-models.mjs      # 下载模型并校验
 | 更新一直说"本地有改动" | 改过被跟踪的文件 | `git status` 看是哪个；恢复或改成放 `~/.dsh` 里 |
 | 桌宠装完起不来 | Electron 路径不对 | 设置 → 桌宠，重新选 `electron.exe` |
 
-还不行，跑一遍体检：
+还不行，先点设置页的 **诊断 → 环境体检**（9 项检查，每项都有"怎么补"），
+能自动补齐的缺项点 **一键配置**（只补缺的，不覆盖已有值）。
+
+命令行体检：
 
 ```powershell
 node scripts/verify-dsh-020-adaptation.mjs

@@ -3596,6 +3596,17 @@ window.__ModuleLoader__.load({
           setLogs(r);
         } catch (e) { toast(`✗ ${e.message}`); } finally { setBusy(""); }
       };
+      const doctorFix = async () => {
+        setBusy("doctor");
+        try {
+          const r = await api("/diagnostics", { method: "POST", body: { action: "doctor-fix" } });
+          const changed = r.changed ?? [];
+          toast(changed.length
+            ? `✓ 已补齐：${changed.join("、")}${r.restartRequired ? "（重启 DSH 生效）" : ""}`
+            : "✓ 没有需要补的");
+          await load();
+        } catch (e) { toast(`✗ ${e.message}`); } finally { setBusy(""); }
+      };
       const backupAll = async () => {
         setBusy("backup");
         try {
@@ -3616,8 +3627,8 @@ window.__ModuleLoader__.load({
       };
 
       const checkRows = (diag?.checks ?? []).map((c) => h("div", { className: "qbw-kv", key: c.name },
-        h("span", null, `${c.ok ? "✓" : "✗"} ${c.name}`),
-        h("span", null, c.detail ?? "")));
+        h("span", null, `${c.level === "warn" ? "⚠️" : c.ok ? "✓" : "✗"} ${c.name}`),
+        h("span", null, `${c.detail ?? ""}${c.fix ? ` · 怎么补：${c.fix}` : ""}`)));
       const pathRows = Object.entries(diag?.paths ?? {}).map(([k, v]) => h("div", { className: "qbw-kv", key: k },
         h("span", null, k),
         h("span", null, String(v))));
@@ -3628,6 +3639,7 @@ window.__ModuleLoader__.load({
         h(Btn, { kind: "qbw-btn2", onClick: () => restore(b.name), disabled: !!busy }, "恢复")));
 
       const actionBar = h("div", { className: "qbw-actions", style: { borderTop: "none", marginTop: 0, paddingTop: 0 } },
+        h(Btn, { kind: "qbw-btn", onClick: doctorFix, disabled: !!busy }, busy === "doctor" ? "配置中…" : "一键配置（补齐缺失）"),
         h(Btn, { kind: "qbw-btn2", onClick: load, disabled: !!busy }, "重新体检"),
         h(Btn, { kind: "qbw-btn2", onClick: backupAll, disabled: !!busy }, "备份全部配置"));
 
