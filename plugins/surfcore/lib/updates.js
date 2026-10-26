@@ -75,10 +75,84 @@ function normalizeDir(dir) {
  * release 通道用于**构建产物型**组件（桌宠）：源码在 git 里开源，但用户装的是 zip 产物，
  * 没法（也不该）用 git 判断版本。
  */
+/**
+ * 纯版本号检查（不需要 .git）：读本地 package.json，跟 GitHub 最新 release/tag 比。
+ * 目的：zip 安装、开发副本也能知道"最新是 0.4.8，我是 0.4.6"。
+ */
+function parseSemver(value) {
+  const text = String(value ?? '').replace(/^v/i, '').trim();
+  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(text);
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+}
+
+function semverCompare(a, b) {
+  const x = parseSemver(a);
+  const y = parseSemver(b);
+  if (!x || !y) return 0;
+  for (let i = 0; i < 3; i += 1) {
+    if (x[i] !== y[i]) return x[i] > y[i] ? 1 : -1;
+  }
+  return 0;
+}
+
+async function fetchLatestRelease(repo) {
+  const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'surfcore-updates' };
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, { headers, signal: AbortSignal.timeout(8000) });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.tag_name) return { tag: data.tag_name, url: data.html_url ?? `https://github.com/${repo}/releases` };
+    }
+  } catch {}
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/tags?per_page=1`, { headers, signal: AbortSignal.timeout(8000) });
+    if (res.ok) {
+      const list = await res.json();
+      if (Array.isArray(list) && list[0]?.name) return { tag: list[0].name, url: `https://github.com/${repo}/releases` };
+    }
+  } catch {}
+  return null;
+}
+
+export async function inspectVersionComponent(component, { fetch: doFetch = true } = {}) {
+  const id = String(component?.id ?? '').trim();
+  const name = String(component?.name ?? id);
+  const dir = normalizeDir(component?.dir);
+  const repo = String(component?.versionRepo ?? '').trim();
+  const base = { id, name, dir: dir || String(component?.dir ?? ''), kind: 'version', channel: 'version' };
+  if (!repo) return { ...base, available: false, reason: '没有配置版本仓库' };
+  let installedVersion = '';
+  try {
+    installedVersion = String(JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).version ?? '');
+  } catch {}
+  if (!installedVersion) return { ...base, available: false, installedVersion: '', reason: '读不到本地 package.json' };
+  if (!doFetch) return { ...base, available: true, installedVersion, latestVersion: null, updateAvailable: false, reason: '本次未拉取' };
+  const latest = await fetchLatestRelease(repo);
+  if (!latest) {
+    return { ...base, available: false, installedVersion, reason: '拉不到 GitHub 版本（网络或限流）' };
+  }
+  const latestVersion = latest.tag.replace(/^v/i, '');
+  return {
+    ...base,
+    available: true,
+    installedVersion,
+    latestVersion,
+    updateAvailable: semverCompare(latestVersion, installedVersion) > 0,
+    downloadUrl: latest.url,
+    reason: '按版本号比对（不依赖 git）',
+  };
+}
+
 export async function inspectComponent(component, opts = {}) {
   const kind = String(component?.kind ?? '').trim();
   if (kind === 'release') return inspectReleaseComponent(component, opts);
-  if (kind === 'git') return inspectGitComponent(component, opts);
+  if (kind === 'git') {
+    const git = await inspectGitComponent(component, opts);
+    if (git.available || !component?.versionRepo) return git;
+    // 不是 git 仓库 / 没有 remote（zip 安装、开发副本）：退化成版本号比对
+    const byVersion = await inspectVersionComponent(component, opts).catch(() => null);
+    return byVersion ? { ...git, ...byVersion, gitReason: git.reason } : git;
+  }
   // 自动：先看是不是 git 工作区，不再看有没有 versionUrl
   const dir = normalizeDir(component?.dir);
   if (dir) {
@@ -86,7 +160,10 @@ export async function inspectComponent(component, opts = {}) {
     if (inside.ok && inside.stdout.trim() === 'true') return inspectGitComponent(component, opts);
   }
   if (component?.versionUrl) return inspectReleaseComponent(component, opts);
-  return inspectGitComponent(component, opts);
+  const git = await inspectGitComponent(component, opts);
+  if (git.available || !component?.versionRepo) return git;
+  const byVersion = await inspectVersionComponent(component, opts).catch(() => null);
+  return byVersion ? { ...git, ...byVersion, gitReason: git.reason } : git;
 }
 
 /** 检查单个 git 组件（只读；`fetch` 时才会碰网络）。 */

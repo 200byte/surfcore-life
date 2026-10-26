@@ -1294,7 +1294,7 @@ window.__ModuleLoader__.load({
               (updates.results ?? []).length
                 ? updates.results.map((item) => {
                   if (item.available) {
-                    const ver = item.channel === "release" && item.latestVersion
+                    const ver = item.latestVersion
                       ? ` v${item.installedVersion ?? "?"}→v${item.latestVersion}` : "";
                     return `${item.name}${item.updateAvailable ? `（有更新${ver}）` : `（最新${ver}）`}`;
                   }
@@ -1307,6 +1307,9 @@ window.__ModuleLoader__.load({
               : null,
             h("div", { className: "qbw-actions" },
               h(Btn, { onClick: () => checkUpdates(), disabled: !!busy }, busy === "updates" ? "检查中…" : "检查更新"),
+              (updates.results ?? []).some((x) => x.updateAvailable && x.downloadUrl)
+                ? h(Btn, { kind: "qbw-btn2", onClick: () => window.open((updates.results ?? []).find((x) => x.updateAvailable && x.downloadUrl).downloadUrl, "_blank", "noopener") }, "去下载新版")
+                : null,
               h(Btn, { kind: "qbw-btn2", onClick: () => setUpdateOpen(true), disabled: !(updates.results ?? []).length }, "查看详情"))),
           h(AdvancedSettings, { note: "SnowLuma 安装 / 扩展与平台：装好后很少改" },
             h("div", { className: "qbw-card" },
