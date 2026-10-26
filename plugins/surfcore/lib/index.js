@@ -342,6 +342,13 @@ export function apply(ctx) {
       pluginLog('生物钟未启动：B站 启动开关关闭（设置 → B站 → 启动 B站）');
       return schedulerStatus;
     }
+    // 没登录过 B站 就不要自动起会话：新用户第一次装完，60s 一次的 tick 只会空烧 token。
+    // （凭据由扫码登录写入 BILI_CRED；用户登录后会自然启动。）
+    if (!fs.existsSync(BILI_CRED)) {
+      schedulerStatus = idleSchedulerStatus('not-logged-in');
+      pluginLog('生物钟未启动：B站 还没登录（设置 → B站 → 扫码登录），避免空转消耗 token');
+      return schedulerStatus;
+    }
     try {
       const character = readCurrentCharacter();
       const sessionId = character ? `bili-whale-${character.id}` : 'bili-whale';

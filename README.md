@@ -7,7 +7,7 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.4.3` |
+| 版本 | `0.4.4` |
 | 目标 DSH | `0.2.1-rc.2 或更新（rc.3 已能安装，功能未完整回归）`（`npm run verify:adaptation` 可逐项复核） |
 | 平台 | Windows（沙箱 ACL / SnowLuma / 启动脚本都与它绑定） |
 | 许可 | MIT（SnowLuma 是第三方专有运行时，**不随本仓库分发**） |
@@ -17,6 +17,20 @@
 > 群号 / 群友名单 / QQ 号 / B站 mid 全部为占位符。运行时数据永远只在你自己的机器上。
 
 ---
+
+## 让 DSH 自己装（也可以只发一条链接）
+
+把这句话发给 DSH：
+
+> 帮我安装 https://github.com/Mieksido/surfcore ，按 README 的步骤来。
+
+**顺序很重要**（DSH 常常先 install_bundle、后装依赖，结果激活时报 `Cannot find module '@deepseek-ai/schemastery'`）：
+
+1. `npm install`（没有 npm 就用 DSH 自带的 pnpm：`~/.dsh/dsh-runtimes/.../pnpm/bin/pnpm.cjs`）
+2. 再 `plugin_manager install_bundle`（或 `node scripts/setup-dsh.mjs`）
+3. 重启 DSH → 设置 → SurfCore → 诊断 → 一键安装
+
+> 用 junction 链接安装时，模块是从**仓库真实路径**解析的，所以仓库根必须有 `node_modules` —— 这就是第 1 步不能省的原因。
 
 ## 第一次装（4 条命令）
 
