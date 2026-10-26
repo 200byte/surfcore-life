@@ -424,7 +424,8 @@ export async function inspectReleaseComponent(component, { fetch = true } = {}) 
   }
   const notes = String(manifest.notes ?? manifest.changelog ?? '').trim();
   const changelog = notes ? notes.split('\n').map((line) => line.trim()).filter(Boolean).slice(0, MAX_CHANGELOG) : [];
-  const comparison = installed?.version ? compareVersions(latestVersion, installed.version) : 1;
+  // 未安装不算"有更新"：那是一个可选安装，不该弹更新窗（2026-10-27 修）
+  const comparison = installed?.version ? compareVersions(latestVersion, installed.version) : 0;
   return {
     ...base, available: true,
     installedVersion: installed?.version ?? null,
@@ -508,6 +509,7 @@ export function createUpdatesService({ stateDir, components, blockedReason = () 
   /** 这批结果里"值得提示"的项：有更新，且这次的远端 commit 没被 dismiss 过。 */
   function pendingOf(results) {
     return (results ?? []).filter((item) => item?.available && item.updateAvailable
+      && Boolean(item.installedVersion || item.local)
       && state.dismissed[item.id] !== (item.remote ?? `v${item.latestVersion ?? ''}`));
   }
 

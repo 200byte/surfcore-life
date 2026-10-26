@@ -131,9 +131,11 @@ window.__ModuleLoader__.load({
 .qbw-chip.warn{background:rgba(255,176,32,.14);border-color:rgba(255,176,32,.4);color:#b97800}
 .qbw-chip.bad{background:rgba(229,72,77,.12);border-color:rgba(229,72,77,.4);color:#e5484d}
 .qbw-modal-backdrop{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.38);display:flex;align-items:center;justify-content:center;padding:18px}
-.qbw-modal{width:100%;max-width:470px;background:var(--dsw-alias-bg-l1,#fff);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l2);border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.32);padding:18px 18px 14px}
+.qbw-modal{width:100%;max-width:470px;background:#1c1f24;color:#f2f5f7;border:1px solid #3a3f46;border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.5);padding:18px 18px 14px}
 .qbw-modal h3{margin:0 0 8px;font-size:16px;line-height:24px;display:flex;align-items:center;gap:8px}
-.qbw-modal p{margin:0 0 10px;font-size:12.5px;line-height:19px;color:var(--dsw-alias-label-secondary)}
+.qbw-modal p{margin:0 0 10px;font-size:12.5px;line-height:19px;color:#c3c9d1}
+.qbw-modal .qbw-hint{color:#9aa3ad}
+.qbw-modal .qbw-chip{background:rgba(255,255,255,.12);color:#f2f5f7}
 .qbw-modal .qbw-actions{margin-top:14px}
 /* ── Token 额度页 ─────────────────────────────────────────────── */
 .qbw-budget-summary{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap;border:1px solid rgba(31,111,235,.28);background:linear-gradient(135deg,rgba(31,111,235,.10),rgba(255,122,162,.06));border-radius:12px;padding:12px 14px;margin:0 0 12px}
@@ -1145,15 +1147,17 @@ window.__ModuleLoader__.load({
       return h("div", { className: "qbw-modal-backdrop", onClick: (e) => { if (e.target === e.currentTarget && !working) onClose?.(); } },
         h("div", { className: "qbw-modal", style: { maxWidth: "600px", maxHeight: "82vh", overflow: "auto" } },
           h("h3", null, "发现可用更新"),
-          h("p", null, "更新只做 git 快进（--ff-only）；本地有未提交改动或未推送提交的组件会被拒绝，不会覆盖你的修改。"),
+          h("p", null, "git 安装做快进（--ff-only）；zip 安装会下载新包覆盖代码。两种都不会动 config.json 与记忆卡。"),
           pending.length ? pending.map((item) => h("div", { key: item.id, style: { border: "1px solid rgba(127,127,127,.24)", borderRadius: "10px", padding: "10px 12px", margin: "0 0 8px" } },
             h("label", { style: { display: "flex", gap: "8px", alignItems: "center", fontWeight: 600 } },
               h("input", { type: "checkbox", checked: selected.has(item.id), onChange: () => toggle(item.id), disabled: working }),
               item.name,
               h("span", { className: "qbw-chip", style: { marginLeft: "auto" } },
-                item.channel === "release"
-                  ? `${item.installedVersion ? `v${item.installedVersion}` : "未安装"} → v${item.latestVersion}`
-                  : `${item.behind} 个提交`)),
+                item.channel === "version"
+                  ? `v${item.installedVersion} → v${item.latestVersion}`
+                  : item.channel === "release"
+                    ? `${item.installedVersion ? `v${item.installedVersion}` : "未安装"} → v${item.latestVersion}`
+                    : `${item.behind} 个提交`)),
             h("div", { className: "qbw-hint", style: { marginTop: "4px" } },
               `${item.dir} · ${item.branch ?? ""}${item.dirty ? ` · ⚠️ 本地有 ${item.dirty} 处改动` : ""}${item.ahead ? ` · ⚠️ 本地领先 ${item.ahead}` : ""}${item.channel === "release" ? " · 版本清单" : " · git"}`),
             item.blocked ? h("div", { className: "qbw-hint", style: { color: "#c0392b" } }, `不能自动更新：${item.blocked}`) : null,
