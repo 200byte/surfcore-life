@@ -786,7 +786,7 @@ export function createBiliMemory({ stateDir, home = os.homedir(), log = () => {}
     try { atomicWriteText(paths.history, JSON.stringify(data, null, 2) + '\n'); } catch {}
   }
 
-  function pickShareCard({ slotIndex = 0, dateKey = new Date().toLocaleDateString('sv-SE'), historyDays = 6 } = {}) {
+  function pickShareCard({ slotIndex = 0, dateKey = new Date().toLocaleDateString('sv-SE'), historyDays = 6, allowReuse = false } = {}) {
     const index = readIndex();
     if (!index || !Array.isArray(index.entries)) return null;
     const hist = history();
@@ -802,9 +802,14 @@ export function createBiliMemory({ stateDir, home = os.homedir(), log = () => {}
       .slice(0, 16);
     if (!pool.length) return null;
     const fresh = pool.filter((e) => !(Date.parse(used[e.id] ?? 0) > cutoff));
-    const list = fresh.length ? fresh : pool;
+    if (!fresh.length) {
+      // 2026-10-26 修：以前这里会回退到整个 pool，结果"最高分那条"在 N 天内被反复发。
+      // 现在默认**不发**（宁可空一档，也不重复）；确需复用才显式 allowReuse。
+      if (!allowReuse) return null;
+      return pool[0] ?? null;
+    }
     // 永远取“还没用过里优先级最高”的那条：同一天不会因为 slotIndex 递增而跳过高分素材。
-    return list[0] ?? pool[0];
+    return fresh[0];
   }
 
   function recordShare(id, slotKey) {

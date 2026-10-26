@@ -152,6 +152,8 @@ const tests = [
   'test-voice-packs-default.mjs',
   // 版本号单一真相：根/插件 package.json 一致、无硬编码、CHANGELOG 有当前版本。
   'test-version.mjs',
+  // B站分享去重：新鲜池空时不得回退旧素材（2026-10-26 修复的"同一条反复发"）。
+  'test-bili-share-dedup.mjs',
 ];
 let failed = 0;
 for (const test of tests) {

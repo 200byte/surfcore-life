@@ -104,6 +104,7 @@ export function createBiliShareScheduler({
   gapMs = 4000,
   getMode = () => 'chat',
   sendCard = null,
+  isEnabled = () => true,
 }) {
   const timeList = normalizeTimes(times);
   const stateFile = path.join(stateDir, 'bili-share-state.json');
@@ -162,6 +163,10 @@ export function createBiliShareScheduler({
   }
 
   async function fire(timeLabel, { manual = false } = {}) {
+    if (!isEnabled()) {
+      log('[B站分享] B站已停用（设置里的启动开关关了），跳过本次');
+      return { ok: false, skipped: true, why: 'bili-disabled' };
+    }
     if (running) {
       log('[B站分享] 上一轮还没跑完，跳过本次');
       return { ok: false, skipped: true };
@@ -184,8 +189,8 @@ export function createBiliShareScheduler({
       const slotIndex = Math.max(0, slotIndexOf(timeLabel));
       const card = memory.pickShareCard({ slotIndex, dateKey: dk });
       if (!card) {
-        log('[B站分享] 分享池为空（还没有可分享的公开B站见闻），本次跳过');
-        return { ok: false, why: '分享池为空' };
+        log('[B站分享] 没有新鲜素材（可分享的都已在 6 天内发过），本次跳过；不发旧的');
+        return { ok: false, why: '没有新鲜素材' };
       }
       let sent = 0;
       for (const gid of groups) {

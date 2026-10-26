@@ -1102,14 +1102,14 @@ false 仍为 null”用例；`normalizeBiliFishGuard` 默认 true/false 覆盖�
 - 现象：用户在群里发「@机器人 test」，机器人照常回复；`bridge.log` 里没有任何 `[黑名单]` 行。
 - 查证（只看文件就能定案）：
   - 保存**之前**的备份 `~/.dsh/surfcore/backups/qq-config-2026-10-23T02-49-34-262Z.json` 里 `deny` 全空；
-  - 保存**之后**的 `config.json`：`deny.private=["1000000006"]`、`deny.users=[]`；
-  - `state/social-v2.json` 的 `unread` 里还躺着那两条测试消息（`userId=1000000006`）。
+  - 保存**之后**的 `config.json`：`deny.private=["1011078831"]`、`deny.users=[]`；
+  - `state/social-v2.json` 的 `unread` 里还躺着那两条测试消息（`userId=1011078831`）。
   ⇒ 这个 QQ 被填进了「仅拦私聊」，`deny.users` 从没被赋值 —— 不是拦截没生效，是根本没拦。
 - 处置：
   1. 把该 QQ 移进 `deny.users`（真实配置先备份）；
   2. `loadSocialV2State()` 启动时清掉黑名单用户在 `unread` / `recentMessages` 里的积压
      —— 否则拉黑前堆的未读会在下一次唤醒（哪怕被别人触发）被当成新消息回一遍，看起来仍然像没生效。
-     实测启动日志：`[黑名单] group:100000004 启动时清掉 4 条来自 deny.users 的未读/上下文`；
+     实测启动日志：`[黑名单] group:767098733 启动时清掉 4 条来自 deny.users 的未读/上下文`；
   3. 设置页把字段改名为「仅拦私聊（deny.private）」，并在有人只填在这一档时给红字提示 +
      「把这 N 人加到『拉黑的人』」一键迁移；
   4. 启动日志对「只在 deny.private 里的人」提示：他们在群里仍会被回应。
@@ -1124,7 +1124,7 @@ false 仍为 null”用例；`normalizeBiliFishGuard` 默认 true/false 覆盖�
 - 「我在QQ群里发了小肥鱼在别的群的聊天记录，但是她认成那是她在B站发的」；
 - 「在B站的小肥鱼看到自己的QQ主页图能否认出是自己？目前来看似乎是不能」。
 - 证据（`state/social-v2.json` 的 `recentMessages`）：她对着转发记录说
-  「诶？这是 wo 在B站说过的话呀」「主人连评论都翻出来了 mer」。
+  「诶？这是 wo 在B站说过的话呀」「弥叭连评论都翻出来了 mer」。
 
 **根因（两个不同的问题，别混在一起）**
 1. **来源没有标签**：`formatForwardResponse()` 只返回 `text/media/…`，没有「这是哪个平台」。
@@ -1142,7 +1142,7 @@ false 仍为 null”用例；`normalizeBiliFishGuard` 默认 true/false 覆盖�
 - QQ 唤醒提示每次带一段【来源判断】（合并转发 = QQ 聊天内容；图片/截图也算 QQ 内容；
   不要把聊天记录说成「我在B站说过的话」）；B站 记忆简报关掉时，桥接用自我卡兜底补锚点。
 - B站 唤醒（`scheduler.js` 的 `identityContextLines()`）第一条上下文注入自我卡：
-  B站 昵称/UID/主页/人格名 + QQ 昵称 + **打码** QQ 号（`100****001`）+ 认自己规则 + 隐私句。
+  B站 昵称/UID/主页/人格名 + QQ 昵称 + **打码** QQ 号（`328****288`）+ 认自己规则 + 隐私句。
 - 桥接在网关登录时把 QQ 昵称/号写到 `state/self-identity.json`（B站 进程读不到网关登录信息）；
   只在内容变化时写，失败只记一行日志。
 - 策略与验收写成 [`guides/CROSS_PLATFORM_IDENTITY.md`](guides/CROSS_PLATFORM_IDENTITY.md)：
@@ -1168,7 +1168,7 @@ false 仍为 null”用例；`normalizeBiliFishGuard` 默认 true/false 覆盖�
     `bili.config.json` 的 `owner.mid`、`alignments.json` 里每个人的 id 收集「受保护 ID」，
     减去她自己的 B站 mid（自己的主页是公开资料）；
   - 接线：`comment.mjs` / `dm.mjs` / `dynamic.mjs` / `share-dynamic.mjs` 发送前调用，命中就 exit 9，
-    错误信息里的号码也打码（`100****001`）。
+    错误信息里的号码也打码（`328****288`）。
 - **QQ 群侧没有加硬闸**：群成员本来就看得到彼此的 QQ 号，硬拦会误伤正常回话；那侧只保留提示词规则
   （【只用于自己】）。要加得先定更窄的规则（例如只拦主人的 B站 mid）。
 - 回归：`scripts/test-identity-guard.mjs`（纯函数 + 「四个写操作都接了闸」的接线断言）。
@@ -1186,7 +1186,7 @@ false 仍为 null”用例；`normalizeBiliFishGuard` 默认 true/false 覆盖�
 2. **reserved2 下纯文本不会自动发**：`deliverPromptNow` 只在 `currentMode !== 'reserved2'` 时
    自动转发 `command.text`；而旧提示词写的是「直接输出要发的话」。就算定时器炸了，
    她也只是"想"了这句话，QQ 上什么都不会出现。
-3. **目标与机器人不是「互为好友」**：实测目标 QQ `1000000005` 当时不在机器人好友列表，
+3. **目标与机器人不是「互为好友」**：实测目标 QQ `3362299430` 当时不在机器人好友列表，
    OneBot 直接 `result=16 发送失败，请先添加对方为好友`；错误只留在 bridge.log，
    管理员在设置页看不到（试发接口回 200/已投递）。
 
@@ -1208,7 +1208,7 @@ false 仍为 null”用例；`normalizeBiliFishGuard` 默认 true/false 覆盖�
 - `scripts/test-greeting.mjs`（10 条）：准点/08:00:00 补发/超窗排明天/已发不重发/重试不越窗/跨天/
   主题轮换/reserved2 提示词带工具与令牌/chat 模式不要求工具/补发文案带「补发」。
 - 真机：11:29 目标非好友时 `AI 反馈 [warning]`＋发送失败被 QQ 拒绝；
-  用户把该号加为好友后，11:36:19 `[send] /api/send/private private:1000000005: 成功 1/1 条`，
+  用户把该号加为好友后，11:36:19 `[send] /api/send/private private:3362299430: 成功 1/1 条`，
   随后 `工具已发送消息，跳过自动转发` ⇒ 一条、不重复。
 
 **边界**
@@ -1297,8 +1297,8 @@ false 仍为 null”用例；`normalizeBiliFishGuard` 默认 true/false 覆盖�
   `index.js`，`GET /api/preferences/scan` 会回「未知接口」（UI 已提示“重启 DSH 或重载 surfcore”）。
   `feed` / `prefs scan` 是子进程所以即时生效；存权重走旧 `/config` 路由，也不用重启。
 - **抓取的是哪个账号（2026-10-23 用户追问）**：只读 `~/.dsh/surfcore/bili/credentials.json` 里配置的
-  **小肥鱼账号**（实测 nav mid=1000000003 示例小肥鱼），以及当前角色的本地观看/收藏；
-  **不读浏览器登录的账号，也不读主人 `owner.mid=10000002`（主人 / 示例主人）**。
+  **小肥鱼账号**（实测 nav mid=1483638708 卡哇伊的小肥鱼），以及当前角色的本地观看/收藏；
+  **不读浏览器登录的账号，也不读主人 `owner.mid=37634003`（弥叭 / 玛露Marrow）**。
   返回值新增 `account { mid,name,role }`，设置页/CLI 都会显示抓取账号。
   想抓主人账号必须另配主人的 B站 cookie（观看历史/点赞/私密收藏只对本人开放）；公开数据实测为空
   （无公开收藏、关注未公开、仅 2 条动态），不能当偏好源。
@@ -1309,12 +1309,12 @@ false 仍为 null”用例；`normalizeBiliFishGuard` 默认 true/false 覆盖�
 ## #44（2026-10-23）B站 绑定/主人偏好：从「F12 复制 cookie」改成扫码登录
 
 **用户要求**：
-1. 「确认抓取的是主人账号（主人）的偏好，不是浏览器登录或小肥鱼的账号」；
+1. 「确认抓取的是主人账号（弥叭）的偏好，不是浏览器登录或小肥鱼的账号」；
 2. 「新用户绑定小肥鱼B站账号那一步，也改成扫码，不要 F12 抓 cookie」。
 
 **结论（先回答第 1 条）**：
-- 原实现只读 `~/.dsh/surfcore/bili/credentials.json`，实测 nav 返回 **mid=1000000003
-  示例小肥鱼**；主人 `owner.mid=10000002`（主人 / 示例主人）完全没读；
+- 原实现只读 `~/.dsh/surfcore/bili/credentials.json`，实测 nav 返回 **mid=1483638708
+  卡哇伊的小肥鱼**；主人 `owner.mid=37634003`（弥叭 / 玛露Marrow）完全没读；
   浏览器 cookie 也从未读取。
 - 主人账号的观看历史/点赞/私密收藏只对本人开放；公开数据实测为空
   （收藏夹 0 个、关注列表 code 22115、公开动态 2 条），抓不出偏好。
@@ -1514,7 +1514,7 @@ false 仍为 null”用例；`normalizeBiliFishGuard` 默认 true/false 覆盖�
 **用户问题**：
 - 小肥鱼花 token 的逻辑是什么？
 - 别人突然回复很多、私信爆破，会不会烧很多 token？
-- 某个群有人要求连回 10 条，会不会很烧？
+- 402 群有人要求连回 10 条，会不会很烧？
 - 为什么有鱼群守则还能连回 10 条？要不要做限制？
 
 **诊断**：
@@ -1688,7 +1688,7 @@ ledger 当天 QQ 117.9M / other 21.4M 对得上。
 
 ## #54（2026-10-24）群友让小肥鱼「5000 字拆成 10 条」：硬上限有，但模型会先撞墙
 
-**用户问题**：白天 某个群有人让小肥鱼把 5000 字拆成 10 条回复，问这种情况优化了吗。
+**用户问题**：白天 402 群有人让小肥鱼把 5000 字拆成 10 条回复，问这种情况优化了吗。
 
 **诊断**：
 - 硬上限其实已经有两层：`maxMessageChars=500`（单条超 500 字直接 400），
@@ -1717,7 +1717,7 @@ ledger 当天 QQ 117.9M / other 21.4M 对得上。
 
 ## #55（2026-10-24）表情推荐只挂在唤醒提示上：长轮询期间到达的消息永远看不到
 
-**现象**：用户 02:14 在 某个群发「求求别再嘲笑我的回复了」，小肥鱼回了一句「诶？没有嘲笑呀…」，
+**现象**：用户 02:14 在 402 群发「求求别再嘲笑我的回复了」，小肥鱼回了一句「诶？没有嘲笑呀…」，
 **没有发任何表情**。用户问「为什么没发现表情包」。
 
 **取证**（`state/tool-calls.jsonl` + `state/qq-activity.log`）：
@@ -1734,7 +1734,7 @@ ledger 当天 QQ 117.9M / other 21.4M 对得上。
 - wait / unread 的返回新增 `stickerMatch: { hint, moods, matches[] }`（有推荐才出现，没有就不占字段）；
 - 表情策略提示补一句「新消息是在 wait/unread 返回里看到的话，返回值会带 `stickerMatch.hint`」。
 
-**追加修法（同一天实测）**：4 条消息窗口会把最新一条冲淡——某个群那句
+**追加修法（同一天实测）**：4 条消息窗口会把最新一条冲淡——402 群那句
 「求求别再嘲笑我的回复了」和前后三条闲聊拼在一起后，#05/#06 都只剩情绪分 0.46 打平；
 只看最新一条则 #06 是 0.84、直接排第一。所以 `stickerMatchFor` 改成：
 **最新一条 ≥4 字时以它为准，太短（「哈哈」「[图片]」）或算不出推荐时退回 4 条窗口**。
@@ -1743,7 +1743,7 @@ ledger 当天 QQ 117.9M / other 21.4M 对得上。
 **验证**：
 - `test-stickers.mjs`：断言 `stickerMatchFor` 存在、wait/unread 都调用它、响应里序列化 `stickerMatch`、
   策略提示提到 `stickerMatch`（71 条全绿）；
-- 零副作用验证：带控制台令牌 `GET /api/socialV2/unread?key=group:100000004` → 返回
+- 零副作用验证：带控制台令牌 `GET /api/socialV2/unread?key=group:767098733` → 返回
   `stickerMatch.hint`（情绪 委屈/嘲讽，#05/#06）与 `matches[]`，没有真发任何 QQ 消息；
 - 离线对比：最新一条 → `#06(0.84)`；4 条窗口 → `#05/#06 均 0.46`，这解释了聚焦最新一条的必要性。
 
@@ -2472,3 +2472,44 @@ fs.rmSync(dest, { recursive: true, force: true });   // dest = 安装目录
 - **"安装"和"更新"不是同一个动作**：安装可以假设目录是空的，更新必须假设里面有用户数据；
 - 复用安装器之前先看它有没有 `rmSync` —— 有就说明它是破坏性的，不能直接拿来做更新；
 - 这类"点一下按钮就删东西"的功能，**必须有端到端测试**（真 zip + 真目录），单测 stub 掉安装器是测不出来的。
+
+## #78（2026-10-26）同一支视频被一天发 8 次：分享去重的"兜底"就是重复的源头
+
+**现象**：用户反馈"小肥鱼在群里分享的视频全是同一个"，而且**这两天根本没启用 B站**。
+查 `state/bridge.log`，10-26 的 19:00 / 21:00 两档、3 个群、全是 `BV1mFJq6iEUX`（10-22 已经发过）。
+
+**根因（两个，叠在一起）**：
+
+1. `pickShareCard()` 里，当"6 天内没用过的池子（fresh）"为空时，代码**回退到整个 pool**：
+
+```js
+const fresh = pool.filter((e) => !(Date.parse(used[e.id] ?? 0) > cutoff));
+const list = fresh.length ? fresh : pool;      // ← 这里
+return list[0] ?? pool[0];
+```
+
+   pool 按 `priority → score → date` 排序，永远是同一条最高分的。于是"都用过了"不但没有让它停，
+   反而让它**每天重新发同一条**（而且 `recordShare` 每次都会刷新时间戳，冷却永远不会到期）。
+
+2. 分享定时器跑在**桥接进程**里，看的是 `biliBridge.enabled`——这个值只在桥接**启动时读一次**。
+   用户在设置页关的是插件侧的「启动B站」，桥接的定时器照跑；`share.groups` 为空时还会回退到
+   `allow.groups`（3 个群），于是"关了 B站 还在发"。
+
+**修法**：
+
+- `pickShareCard()`：fresh 为空直接 `return null`（宁可不发，也不发旧的）；要复用必须显式
+  `allowReuse: true`。调度器日志改成"没有新鲜素材，本次跳过；不发旧的"。
+- 调度器加 `isEnabled` 闸门，每次 fire 前判断；桥接侧 `biliStartEnabledByUnified()`
+  每 30 秒（按 mtime 缓存）读一次 `~/.dsh/surfcore/config.json` 的 `platforms.start.bili`，
+  关了就跳过。
+- `saveHistory()` 的 `catch {}` 改成**把错误打进日志**：写不进去 = 去重永久失效，必须看得见。
+
+**验证**：`scripts/test-bili-share-dedup.mjs`（已进 audit，77/77）：
+
+- 连发 8 档必须是 8 条不同素材；
+- 全部记录为"刚发过"后，`pickShareCard()` 必须返回 `null`；
+- `allowReuse: true` 时才复用；
+- 把 used 时间改成 30 天前后，应能重新选。
+
+**教训**：去重逻辑里的"兜底分支"往往就是重复的源头——**没有新鲜内容时，正确行为是"不发"，
+不是"随便发一条"**。另外，定时任务读开关时不要信启动时的快照。

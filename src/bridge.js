@@ -2457,7 +2457,7 @@ async function main() {
   //
   // 为什么不能只放在唤醒提示里：消息经常**在 AI 已经醒着的时候**到达（长轮询
   // qq_wait_for_messages、或翻 qq_get_unread_messages），这时不会重新构建唤醒提示，
-  // 模型只看得到工具返回的 newMessages。2026-10-24 02:14 实测：某个群里
+  // 模型只看得到工具返回的 newMessages。2026-10-24 02:14 实测：402 群里
   // 「求求别再嘲笑我的回复了」正好在 wait 期间到达，唤醒提示里的推荐根本没机会出现，
   // 模型只回了一句文字。所以 wait / unread 的返回里也要带同一份推荐。
   function stickerMatchFor(messages) {
@@ -11076,7 +11076,7 @@ async function main() {
   }
 
   // 好友列表缓存：QQ 对「非好友」的私聊一律 result=16（请先添加对方为好友）。
-  // 2026-10-23 实测：问候目标 1000000005 根本不在好友列表 —— 提示词修好了、工具也调了，
+  // 2026-10-23 实测：问候目标 3362299430 根本不在好友列表 —— 提示词修好了、工具也调了，
   // 仍然发不出去，而且只在日志里留一行。所以发之前先查一次，并把原因推给管理员。
   let friendListCache = { at: 0, ids: null };
   async function greetingFriendCheck(uin) {
@@ -13837,7 +13837,7 @@ async function main() {
     // 群聊里带发送者信息，私聊不用；角色提示注入到消息开头（agent 可见）；
     // 管理员消息带身份标记（供 agent 识别，但其权限仍受工具面硬限制）
     // 发送者后面必须带 QQ 号：人格卡里的「称呼表」是按 QQ 号映射的，
-    // 只给昵称的话模型根本对不上号（曾出现「表里写的昵称与实际不符」）。
+    // 只给昵称的话模型根本对不上号（曾出现「表里写 omm，实际却叫阿零」）。
     const senderLabel = `${event.sender?.card || event.sender?.nickname || String(event.user_id)}(${String(event.user_id)})`;
     // 群友提到 B 站 / 视频 / 某次看片时，按关键词从完整记忆里捞几条相关细节，
     // 和常驻的「B站记忆简报」互补：简报给身份和最近见闻，检索给具体那次。
@@ -14918,6 +14918,23 @@ async function main() {
 
   // ── B站：记忆注入 / 动态同步 / 每天 8 次分享 ─────────────────────────────
   // groups 为空时默认跟随 allow.groups（白名单群）。这是用户明确要求的“白名单每个群”。
+  // 设置页的「启动B站」开关在合体层 config.json（不是桥接 config.json）。
+  // 桥接的分享定时器以前只在启动时读一次 biliBridge.enabled，用户关了开关也照发；
+  // 这里按 mtime 缓存 30 秒读一次，关了就跳过（2026-10-26 修）。
+  let biliStartCache = { at: 0, enabled: true };
+  function biliStartEnabledByUnified() {
+    const now = Date.now();
+    if (now - biliStartCache.at < 30_000) return biliStartCache.enabled;
+    let enabled = true;
+    try {
+      const file = path.join(SURFCORE_DIR, 'config.json');
+      const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+      enabled = data?.platforms?.start?.bili !== false;
+    } catch {}
+    biliStartCache = { at: now, enabled };
+    return enabled;
+  }
+
   const biliGroupList = (list) => (Array.isArray(list) ? list : [])
     .map((v) => String(v).trim())
     .filter((v) => /^\d+$/.test(v));
@@ -14955,6 +14972,7 @@ async function main() {
         gapMs: cfg.biliBridge.share.gapMs,
         getMode: () => currentMode,
         sendCard: sendBiliCard,
+        isEnabled: () => cfg.biliBridge?.enabled !== false && biliStartEnabledByUnified(),
       });
       biliShare.start();
     } else if (cfg.biliBridge.share.enabled) {

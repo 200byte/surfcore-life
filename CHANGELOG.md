@@ -4,6 +4,16 @@
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 发布规则见 [docs/guides/VERSIONS.md](docs/guides/VERSIONS.md)。
 
+## [0.1.1] - 2026-10-26
+
+### 修复
+
+- **B站分享反复发同一条**：`pickShareCard()` 在"6 天内都发过"时回退到整个素材池，且永远取排序第一条，
+  导致同一条高分视频每天重发；现在新鲜素材为空时**不发**，要复用必须显式 `allowReuse`。
+- **关掉 B站 后分享定时器仍在跑**：分享调度只在桥接启动时读 `biliBridge.enabled`，设置页的
+  「启动B站」关不掉它；现在每次触发前按 30 秒缓存读统一配置的 `platforms.start.bili`。
+- **分享历史写失败被静默吞掉**：`saveHistory()` 的 `catch {}` 改为打日志——写不进去会让去重永久失效。
+
 ## [Unreleased]
 
 ### 计划
