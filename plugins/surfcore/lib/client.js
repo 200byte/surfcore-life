@@ -29,7 +29,7 @@ window.__ModuleLoader__.load({
     const CSS_TAG = "surfcore/console.css";
 
     const CSS = `
-.qbw-app{max-width:1020px;margin:0 auto;color:var(--dsw-alias-label-primary);font-size:13px;line-height:20px;border:1px solid var(--dsw-alias-border-l2);border-radius:14px;background:var(--dsw-alias-bg-l1,transparent);box-shadow:0 10px 30px rgba(0,0,0,.08);overflow:hidden}
+.qbw-app{max-width:1020px;margin:0 auto;color:var(--dsw-alias-label-primary);font-size:13px;line-height:20px;border:1px solid var(--dsw-alias-border-l2);border-radius:14px;background:rgba(127,127,127,.04);box-shadow:0 10px 30px rgba(0,0,0,.12);overflow:hidden}
 .qbw-head{padding:18px 20px 14px;border-bottom:1px solid var(--dsw-alias-border-l2);background:linear-gradient(135deg,rgba(31,111,235,.10),rgba(255,122,162,.08))}
 .qbw-kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dsw-alias-label-tertiary);margin:0 0 4px}
 .qbw-title{margin:0;font-size:19px;font-weight:600;line-height:28px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -71,7 +71,7 @@ window.__ModuleLoader__.load({
 .qbw-btn3{background:transparent;border:1px dashed var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary)}
 .qbw-btn.danger{background:#e5484d}
 .qbw-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:10px;border-top:.5px solid var(--dsw-alias-border-l2)}
-.qbw-foot{position:sticky;bottom:0;background:var(--dsw-alias-bg-l1,var(--dsw-alias-bg,transparent));border-top:1px solid var(--dsw-alias-border-l2);padding:10px 20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.qbw-foot{position:sticky;bottom:0;background:rgba(127,127,127,.06);border-top:1px solid var(--dsw-alias-border-l2);padding:10px 20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .qbw-foot .spacer{flex:1}
 .qbw-dirty{color:#ffb020;font-size:12px}
 .qbw-ok{color:#2fbf71;font-size:12px}
@@ -107,7 +107,7 @@ window.__ModuleLoader__.load({
 .qbw-alias{border:1px solid rgba(255,122,162,.45);background:rgba(255,122,162,.07);border-radius:10px;padding:10px 12px;margin:0 0 10px}
 .qbw-alias .qbw-input{width:100%;min-width:0;margin-top:6px}
 .qbw-alias-title{font-size:13px;font-weight:650;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.qbw-switch{width:16px;height:16px;accent-color:var(--dsw-alias-brand-primary);margin-top:2px}
+.qbw-switch{width:16px;height:16px;accent-color:#2f6fed;margin-top:2px}
 .qbw-search{display:flex;gap:8px;align-items:center;margin:4px 0 10px;flex-wrap:wrap}
 .qbw-search .qbw-input{flex:1;min-width:220px}
 .qbw-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
