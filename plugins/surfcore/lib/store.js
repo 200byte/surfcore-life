@@ -146,9 +146,9 @@ export const DEFAULT_UNIFIED = {
     startDelayMs: 20000,
     intervalMs: 21600000,
     components: [],
-    // 构建产物型组件（桌宠）走版本清单：发版时把 version.json 放到 Release 资产里，
-    // 这里填它的直链（发布后才有）。语音包是 zip 安装时同理。
-    pet: { versionUrl: '' },
+    // 构建产物型组件（桌宠）走版本清单：发版时把 version.json 放到 Release 资产里。
+    // 默认指向官方 Release 的 latest 直链（无 API 限流）；自建发布源就改这里。
+    pet: { versionUrl: 'https://github.com/Mieksido/surfpet/releases/latest/download/version.json' },
     voice: { localVersionUrl: '', cloudVersionUrl: '' },
   },
 };
