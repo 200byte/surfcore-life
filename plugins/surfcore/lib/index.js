@@ -28,6 +28,7 @@ import {
   QQ_CONFIG, QQBOT_ROOT, STATE_DIR, UNIFIED_FILE, ensureDirs, findNodeExe, maskPath,
 } from './paths.js';
 import { resolvePersonaFile } from './persona.js';
+import { discoverSnowLumaConnection } from '../../../src/snowluma-conn.js';
 import { buildInstallChecks, installOk, planDoctorFix } from './doctor.js';
 import {
   autoSnapshot, beforeSwitchSnapshot, characterDetail, characterOverview, createCharacterFromPayload,
@@ -1195,6 +1196,104 @@ export function apply(ctx) {
     });
   }
 
+  let installJob = { running: false, startedAt: null, finishedAt: null, steps: [] };
+
+  function installStep(key, name) {
+    const step = { key, name, status: 'running', detail: '', at: new Date().toISOString() };
+    installJob.steps.push(step);
+    return step;
+  }
+
+  function runCommand(cmd, args, { cwd, timeoutMs = 600_000 } = {}) {
+    return new Promise((resolve) => {
+      const child = spawn(cmd, args, { cwd, windowsHide: true, shell: process.platform === 'win32' });
+      let out = '';
+      const timer = setTimeout(() => { try { child.kill(); } catch {} }, timeoutMs);
+      child.stdout?.on('data', (d) => { out += String(d).slice(0, 4000); });
+      child.stderr?.on('data', (d) => { out += String(d).slice(0, 4000); });
+      child.on('error', (error) => { clearTimeout(timer); resolve({ ok: false, out: String(error?.message ?? error) }); });
+      child.on('close', (code) => { clearTimeout(timer); resolve({ ok: code === 0, out: out.trim() }); });
+    });
+  }
+
+  async function runInstall(opts) {
+    const done = (step, ok, detail = '') => { step.status = ok ? 'ok' : 'fail'; step.detail = String(detail).slice(0, 600); };
+    try {
+      // 1) 依赖
+      const depsStep = installStep('deps', '安装依赖（npm install）');
+      if (fs.existsSync(path.join(QQBOT_ROOT, 'node_modules', '.package-lock.json')) || fs.existsSync(path.join(QQBOT_ROOT, 'node_modules', 'express'))) {
+        done(depsStep, true, '已经装过，跳过');
+      } else {
+        const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+        const r = await runCommand(npm, ['install', '--no-audit', '--no-fund'], { cwd: QQBOT_ROOT, timeoutMs: 900_000 });
+        done(depsStep, r.ok, r.ok ? '完成' : (r.out.slice(-400)));
+        if (!r.ok) throw new Error('依赖安装失败');
+      }
+
+      // 2) 装进 DSH
+      const dshStep = installStep('dsh', '装进 DSH（预设 / MCP / bundle）');
+      if (dshProfileWithSurfcore()) {
+        done(dshStep, true, '已注册，跳过');
+      } else {
+        const r = await runCommand(process.execPath, [path.join(QQBOT_ROOT, 'scripts', 'setup-dsh.mjs')], { cwd: QQBOT_ROOT, timeoutMs: 120_000 });
+        done(dshStep, r.ok, r.ok ? '已注册（重启 DSH 生效）' : (r.out.slice(-400)));
+      }
+
+      // 3) 配置与令牌
+      const cfgStep = installStep('config', '生成配置 / 控制台令牌');
+      const changed = doctorFix({ ownerQQ: opts.ownerQQ });
+      done(cfgStep, true, changed.length ? changed.join('、') : '已经齐了');
+
+      // 4) SnowLuma 端点 / token
+      const snowStep = installStep('snowluma', '发现并写入 SnowLuma 连接');
+      try {
+        const found = await discoverSnowLumaConnection({ cfg: readQqConfig().config ?? {}, timeoutMs: 4000 });
+        if (found.ok) {
+          const snow = { httpUrl: found.baseUrl };
+          if (found.wsUrl) snow.wsUrl = found.wsUrl;
+          if (found.token) snow.accessToken = found.token;
+          saveQqConfig({ snowluma: snow });
+          done(snowStep, true, `已连上 ${found.self?.nickname ?? ''}（${found.self?.user_id ?? ''}）`);
+        } else {
+          done(snowStep, false, String(found.error ?? '没连上：先启动 SnowLuma 并扫码登录'));
+        }
+      } catch (error) { done(snowStep, false, String(error?.message ?? error)); }
+
+      // 5) 主人 + 白名单
+      const idStep = installStep('identity', '写入主人 QQ 与白名单');
+      if (opts.groups.length) {
+        const priv = opts.ownerQQ ? [opts.ownerQQ] : [];
+        saveQqConfig({ allow: { groups: opts.groups, private: priv } });
+        done(idStep, true, `${opts.groups.length} 个群${opts.ownerQQ ? ' + 主人私聊' : ''}`);
+      } else {
+        done(idStep, true, '没选群，跳过（之后在设置 → QQ → 白名单里加）');
+      }
+
+      // 6) 可选：语音包 / 桌宠（只报告状态，不自动下 GB 级内容）
+      const optStep = installStep('optional', '可选组件（语音包 / 桌宠）');
+      const voiceDir = path.join(STATE_DIR, 'voice-packs');
+      const voiceInstalled = fs.existsSync(voiceDir) && fs.readdirSync(voiceDir).length > 0;
+      done(optStep, true, voiceInstalled ? '语音包已存在' : '未装（体积大，需要时按 INSTALL.md §7 单独装）');
+
+      // 7) 起桥接
+      const bridgeStep = installStep('bridge', '启动 QQ 桥接');
+      try {
+        const before = await bridgeStatus().catch(() => ({ running: false }));
+        if (before.running) done(bridgeStep, true, `已在运行（端口 ${before.port}）`);
+        else {
+          await startBridge({ dshWebUrl: currentDshUrl() });
+          done(bridgeStep, true, '已启动');
+        }
+      } catch (error) { done(bridgeStep, false, String(error?.message ?? error)); }
+    } catch (error) {
+      const last = installJob.steps[installJob.steps.length - 1];
+      if (last && last.status === 'running') { last.status = 'fail'; last.detail = String(error?.message ?? error); }
+    } finally {
+      installJob.running = false;
+      installJob.finishedAt = new Date().toISOString();
+    }
+  }
+
   function doctorFix(body) {
     const all = readAll();
     const qqCfg = readQqConfig().config ?? {};
@@ -1241,10 +1340,97 @@ export function apply(ctx) {
       add('隐私策略', PRIVACY_POLICY_VERSION >= 3, `v${PRIVACY_POLICY_VERSION}（私信/密钥/PII 一律不跨平台）`);
       const install = await installChecks();
       const allChecks = [...install, ...checks];
-      json(res, 200, { ok: allChecks.every((c) => c.ok || c.name.includes('可选')), checks: allChecks, installOk: installOk(install), bridge, paths: pathSummary() });
+      json(res, 200, { ok: allChecks.every((c) => c.ok || c.name.includes('可选')), checks: allChecks, installOk: installOk(install), install: installJob, bridge, paths: pathSummary() });
       return;
     }
     const body = JSON.parse(await readBody(req) || '{}');
+    // ── 一键安装：发现 SnowLuma → 拉群 → 写配置（只写这一台机器上真实存在的群）
+    if (body.action === 'install-scan') {
+      const cfg = readQqConfig().config ?? {};
+      let found = { ok: false, error: '未探测' };
+      try { found = await discoverSnowLumaConnection({ cfg, timeoutMs: 4000 }); } catch (error) { found = { ok: false, error: String(error?.message ?? error) }; }
+      let groups = [];
+      if (found.ok) {
+        try {
+          const resp = await fetch(`${found.baseUrl}/get_group_list`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(found.token ? { Authorization: `Bearer ${found.token}` } : {}) },
+            body: '{}',
+          });
+          const data = await resp.json().catch(() => ({}));
+          groups = (Array.isArray(data?.data) ? data.data : [])
+            .map((g) => ({ id: String(g.group_id ?? ''), name: String(g.group_name ?? '') }))
+            .filter((g) => /^\d{5,15}$/.test(g.id));
+        } catch {}
+      }
+      json(res, 200, {
+        ok: found.ok,
+        error: found.ok ? '' : String(found.error ?? '连不上 SnowLuma'),
+        snow: {
+          online: Boolean(found.ok),
+          uin: String(found.self?.user_id ?? ''),
+          nickname: String(found.self?.nickname ?? ''),
+          httpUrl: found.baseUrl ?? '',
+          wsUrl: found.wsUrl ?? '',
+          hasToken: Boolean(found.token),
+          wsToken: Boolean(found.wsToken),
+        },
+        groups,
+      });
+      return;
+    }
+    // ── 一键安装：把整机装成"能用"的状态（依赖 → 装进 DSH → 配置 → SnowLuma → 白名单 → 桥接）
+    if (body.action === 'install-run') {
+      if (installJob.running) { json(res, 200, { ok: true, install: installJob }); return; }
+      const opts = {
+        ownerQQ: String(body.ownerQQ ?? '').trim(),
+        groups: (Array.isArray(body.groups) ? body.groups : []).map((g) => String(g ?? '').trim()).filter((g) => /^\d{5,15}$/.test(g)),
+        voice: body.voice === true,
+        pet: body.pet === true,
+      };
+      installJob = { running: true, startedAt: new Date().toISOString(), finishedAt: null, steps: [] };
+      void runInstall(opts);
+      json(res, 200, { ok: true, install: installJob });
+      return;
+    }
+    if (body.action === 'install-apply') {
+      const changed = [];
+      const cfg = readQqConfig().config ?? {};
+      // 1) 端点 / token：服务端再发现一次（不把 token 交给浏览器）
+      if (body.discoverSnow !== false) {
+        try {
+          const found = await discoverSnowLumaConnection({ cfg, timeoutMs: 4000 });
+          if (found.ok) {
+            const snow = { httpUrl: found.baseUrl };
+            if (found.wsUrl) snow.wsUrl = found.wsUrl;
+            if (found.token) snow.accessToken = found.token;
+            saveQqConfig({ snowluma: snow });
+            changed.push('写入 SnowLuma 地址与 token');
+          }
+        } catch {}
+      }
+      // 2) 主人 QQ（用户确认过的才写）
+      const owner = String(body.ownerQQ ?? '').trim();
+      if (/^\d{5,15}$/.test(owner)) {
+        saveUnified({ admin: { qq: owner } });
+        changed.push('写入管理员 QQ');
+      }
+      // 3) 白名单：只写用户点过 confirm 的那些群
+      const groups = (Array.isArray(body.groups) ? body.groups : [])
+        .map((g) => String(g ?? '').trim())
+        .filter((g) => /^\d{5,15}$/.test(g));
+      if (body.applyGroups && groups.length) {
+        const priv = owner ? [owner] : (Array.isArray(cfg.allow?.private) ? cfg.allow.private : []);
+        saveQqConfig({ allow: { groups, private: priv } });
+        changed.push(`写入白名单（${groups.length} 个群${owner ? ' + 主人私聊' : ''}）`);
+      }
+      // 4) 配置骨架 / 控制台令牌
+      for (const action of doctorFix({ ownerQQ: owner })) {
+        if (!changed.includes(action)) changed.push(action);
+      }
+      json(res, 200, { ok: true, changed, needRestart: changed.some((c) => /DSH|白名单/.test(c)) });
+      return;
+    }
     if (body.action === 'doctor-fix') {
       const changed = doctorFix(body);
       json(res, 200, { ok: true, changed, restartRequired: changed.length > 0 });

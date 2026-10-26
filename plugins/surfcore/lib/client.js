@@ -3596,6 +3596,43 @@ window.__ModuleLoader__.load({
           setLogs(r);
         } catch (e) { toast(`✗ ${e.message}`); } finally { setBusy(""); }
       };
+      const oneClickInstall = async () => {
+        setBusy("install");
+        try {
+          const scan = await api("/diagnostics", { method: "POST", body: { action: "install-scan" } });
+          const online = Boolean(scan.snow?.online);
+          const groupLine = (scan.groups ?? []).map((g) => `${g.name}（${g.id}）`).join("、");
+          const okGroups = online && (scan.groups ?? []).length
+            ? confirm(`发现 SnowLuma：${scan.snow.nickname || scan.snow.uin}${online ? "" : "（离线）"}
+
+她当前在 ${(scan.groups ?? []).length} 个群：
+${groupLine}
+
+把这些群加进白名单吗？（之后可在「QQ → 白名单」删）`)
+            : false;
+          const owner = prompt(`主人 QQ（你的号，不是机器人号；留空=机器人自己的号 ${scan.snow?.uin || "未知"}）`, scan.snow?.uin || "");
+          if (owner === null) return;
+          await api("/diagnostics", { method: "POST", body: {
+            action: "install-run",
+            ownerQQ: String(owner).trim(),
+            groups: okGroups ? (scan.groups ?? []).map((g) => g.id) : [],
+          } });
+          toast("⏳ 开始安装：依赖 → 装进 DSH → 配置 → SnowLuma → 白名单 → 桥接");
+          for (let i = 0; i < 100; i += 1) {
+            await new Promise((r) => setTimeout(r, 3000));
+            const d = await api("/diagnostics").catch(() => null);
+            if (!d) continue;
+            setDiag(d);
+            if (!d.install?.running) {
+              const steps = d.install?.steps ?? [];
+              const bad = steps.filter((x) => x.status === "fail");
+              toast(bad.length ? `⚠️ 有 ${bad.length} 步失败：${bad.map((x) => x.name).join("、")}` : "✓ 全部装好（如改了 DSH 注册，需重启 DSH）");
+              break;
+            }
+          }
+          await reload();
+        } catch (e) { toast(`✗ ${e.message}`); } finally { setBusy(""); await load(); }
+      };
       const doctorFix = async () => {
         setBusy("doctor");
         try {
@@ -3644,9 +3681,19 @@ window.__ModuleLoader__.load({
         h(Btn, { kind: "qbw-btn2", onClick: () => restore(b.name), disabled: !!busy }, "恢复")));
 
       const actionBar = h("div", { className: "qbw-actions", style: { borderTop: "none", marginTop: 0, paddingTop: 0 } },
-        h(Btn, { kind: "qbw-btn", onClick: doctorFix, disabled: !!busy }, busy === "doctor" ? "配置中…" : "一键配置（补齐缺失）"),
+        h(Btn, { kind: "qbw-btn", onClick: oneClickInstall, disabled: !!busy }, busy === "install" ? "安装中…" : "一键安装（全部）"),
+        h(Btn, { kind: "qbw-btn2", onClick: doctorFix, disabled: !!busy }, busy === "doctor" ? "配置中…" : "只补缺失项"),
         h(Btn, { kind: "qbw-btn2", onClick: load, disabled: !!busy }, "重新体检"),
         h(Btn, { kind: "qbw-btn2", onClick: backupAll, disabled: !!busy }, "备份全部配置"));
+
+      const installRows = (diag?.install?.steps ?? []).map((x) => h("div", { className: "qbw-kv", key: x.key + x.at },
+        h("span", null, `${x.status === "ok" ? "✓" : x.status === "fail" ? "✗" : "⏳"} ${x.name}`),
+        h("span", null, x.detail ?? "")));
+      const installCard = (diag?.install?.steps ?? []).length
+        ? h("div", { className: "qbw-card" },
+            h("h4", null, "一键安装进度 ", h("span", { className: "qbw-badge " + (diag.install.running ? "" : "ok") }, diag.install.running ? "进行中" : "已结束")),
+            installRows)
+        : null;
 
       const cards = diag ? h("div", { className: "qbw-grid", style: { marginTop: "8px" } },
         h("div", { className: "qbw-card" },
@@ -3654,7 +3701,8 @@ window.__ModuleLoader__.load({
           checkRows),
         h("div", { className: "qbw-card" },
           h("h4", null, "路径"),
-          pathRows)) : null;
+          pathRows),
+        installCard) : null;
 
       const backupSection = h(Section, { title: `备份（${backups.length}）`, note: "写文件前自动生成", collapsible: false }, backupRows);
 
