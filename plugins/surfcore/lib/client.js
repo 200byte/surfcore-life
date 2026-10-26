@@ -3575,6 +3575,7 @@ window.__ModuleLoader__.load({
       const [logs, setLogs] = useState(null);
       const [err, setErr] = useState("");
       const [backups, setBackups] = useState([]);
+      const [flow, setFlow] = useState(null);   // 一键安装：页面内弹窗（不依赖原生 confirm/prompt）
 
       const load = useCallback(async () => {
         try {
@@ -3596,42 +3597,46 @@ window.__ModuleLoader__.load({
           setLogs(r);
         } catch (e) { toast(`✗ ${e.message}`); } finally { setBusy(""); }
       };
-      const oneClickInstall = async () => {
-        setBusy("install");
+      const openInstall = async () => {
+        setFlow({ phase: "scan", owner: "", selected: [], groups: [], snow: null, steps: [], error: "" });
         try {
           const scan = await api("/diagnostics", { method: "POST", body: { action: "install-scan" } });
-          const online = Boolean(scan.snow?.online);
-          const groupLine = (scan.groups ?? []).map((g) => `${g.name}（${g.id}）`).join("、");
-          const okGroups = online && (scan.groups ?? []).length
-            ? confirm(`发现 SnowLuma：${scan.snow.nickname || scan.snow.uin}${online ? "" : "（离线）"}
-
-她当前在 ${(scan.groups ?? []).length} 个群：
-${groupLine}
-
-把这些群加进白名单吗？（之后可在「QQ → 白名单」删）`)
-            : false;
-          const owner = prompt(`主人 QQ（你的号，不是机器人号；留空=机器人自己的号 ${scan.snow?.uin || "未知"}）`, scan.snow?.uin || "");
-          if (owner === null) return;
+          const groups = scan.groups ?? [];
+          setFlow({
+            phase: "form",
+            snow: scan.snow ?? {},
+            groups,
+            selected: groups.map((g) => g.id),
+            owner: scan.snow?.uin || "",
+            steps: [],
+            error: scan.error || "",
+          });
+        } catch (e) {
+          setFlow({ phase: "error", steps: [], groups: [], selected: [], owner: "", snow: null,
+            error: /未知 action/.test(String(e.message)) ? "后端还是旧版本：关掉 DSH 再开一次" : e.message });
+        }
+      };
+      const startInstall = async () => {
+        const chosen = flow?.selected ?? [];
+        setFlow((f) => ({ ...f, phase: "running", steps: [] }));
+        try {
           await api("/diagnostics", { method: "POST", body: {
             action: "install-run",
-            ownerQQ: String(owner).trim(),
-            groups: okGroups ? (scan.groups ?? []).map((g) => g.id) : [],
+            ownerQQ: String(flow?.owner ?? "").trim(),
+            groups: chosen,
           } });
-          toast("⏳ 开始安装：依赖 → 装进 DSH → 配置 → SnowLuma → 白名单 → 桥接");
-          for (let i = 0; i < 100; i += 1) {
-            await new Promise((r) => setTimeout(r, 3000));
+          for (let i = 0; i < 120; i += 1) {
+            await new Promise((r) => setTimeout(r, 2500));
             const d = await api("/diagnostics").catch(() => null);
             if (!d) continue;
             setDiag(d);
-            if (!d.install?.running) {
-              const steps = d.install?.steps ?? [];
-              const bad = steps.filter((x) => x.status === "fail");
-              toast(bad.length ? `⚠️ 有 ${bad.length} 步失败：${bad.map((x) => x.name).join("、")}` : "✓ 全部装好（如改了 DSH 注册，需重启 DSH）");
-              break;
-            }
+            setFlow((f) => (f ? { ...f, steps: d.install?.steps ?? [], phase: d.install?.running ? "running" : "done" } : f));
+            if (!d.install?.running) break;
           }
           await reload();
-        } catch (e) { toast(`✗ ${e.message}`); } finally { setBusy(""); await load(); }
+        } catch (e) {
+          setFlow((f) => (f ? { ...f, phase: "error", error: e.message } : f));
+        }
       };
       const doctorFix = async () => {
         setBusy("doctor");
@@ -3681,7 +3686,7 @@ ${groupLine}
         h(Btn, { kind: "qbw-btn2", onClick: () => restore(b.name), disabled: !!busy }, "恢复")));
 
       const actionBar = h("div", { className: "qbw-actions", style: { borderTop: "none", marginTop: 0, paddingTop: 0 } },
-        h(Btn, { kind: "qbw-btn", onClick: oneClickInstall, disabled: !!busy }, busy === "install" ? "安装中…" : "一键安装（全部）"),
+        h(Btn, { kind: "qbw-btn", onClick: openInstall }, "一键安装（全部）"),
         h(Btn, { kind: "qbw-btn2", onClick: doctorFix, disabled: !!busy }, busy === "doctor" ? "配置中…" : "只补缺失项"),
         h(Btn, { kind: "qbw-btn2", onClick: load, disabled: !!busy }, "重新体检"),
         h(Btn, { kind: "qbw-btn2", onClick: backupAll, disabled: !!busy }, "备份全部配置"));
@@ -3712,9 +3717,52 @@ ${groupLine}
         h("div", { className: "qbw-group" }, "桥接日志"),
         h("div", { className: "qbw-out" }, logs.bridge || "（空）")) : null;
 
+      const installModal = flow ? h("div", {
+        style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" },
+        onClick: (e) => { if (e.target === e.currentTarget && flow.phase !== "running") setFlow(null); },
+      },
+        h("div", {
+          style: { width: "min(620px, 92vw)", maxHeight: "80vh", overflow: "auto", background: "var(--qbw-bg2, #1b1d21)", border: "1px solid var(--qbw-line, #333)", borderRadius: "10px", padding: "16px 18px", boxShadow: "0 12px 40px rgba(0,0,0,0.5)" },
+        },
+          h("h3", { style: { margin: "0 0 10px" } }, flow.phase === "done" ? "安装完成" : flow.phase === "error" ? "安装中断" : "一键安装"),
+
+          flow.phase === "scan" ? h("div", { className: "qbw-hint" }, "正在探测 SnowLuma（端口 / token / 群列表）…") : null,
+          flow.phase === "error" ? h("div", null,
+            h("div", { className: "qbw-err" }, flow.error || "未知错误"),
+            h("div", { className: "qbw-hint", style: { marginTop: "8px" } }, "常见原因：DSH 里跑的还是旧版本（关掉 DSH 再开一次），或 SnowLuma 没登录。")) : null,
+
+          flow.phase === "form" ? h("div", null,
+            h("div", { className: "qbw-hint", style: { marginBottom: "8px" } },
+              flow.snow?.online ? `已连上 SnowLuma：${flow.snow.nickname || ""}（${flow.snow.uin || "?"}）` : `没连上 SnowLuma：${flow.error || "先启动并扫码登录"}`),
+            h("div", { className: "qbw-group" }, "主人 QQ（你的号，不是机器人号）"),
+            h("input", { className: "qbw-input", value: flow.owner, onChange: (e) => setFlow({ ...flow, owner: e.target.value }), style: { width: "100%" } }),
+            h("div", { className: "qbw-group", style: { marginTop: "10px" } }, `把哪些群加进白名单（${flow.groups.length} 个）`),
+            flow.groups.length === 0
+              ? h("div", { className: "qbw-hint" }, "她还没进任何群。装好后把她拉进群，再到「QQ → 白名单」加群号。")
+              : h("div", null, flow.groups.map((g) => h("label", { key: g.id, style: { display: "flex", gap: "8px", alignItems: "center", padding: "4px 0" } },
+                  h("input", { type: "checkbox", checked: flow.selected.includes(g.id), onChange: (e) => setFlow({
+                    ...flow,
+                    selected: e.target.checked ? [...flow.selected, g.id] : flow.selected.filter((x) => x !== g.id),
+                  }) }),
+                  h("span", null, `${g.name}（${g.id}）`)))),
+            h("div", { className: "qbw-hint", style: { marginTop: "8px" } }, "不会自动放行：只有你勾选的群会被加白。")) : null,
+
+          flow.phase === "running" || flow.phase === "done" ? h("div", null,
+            (flow.steps ?? []).map((x) => h("div", { className: "qbw-kv", key: x.key + x.at },
+              h("span", null, `${x.status === "ok" ? "✓" : x.status === "fail" ? "✗" : "⏳"} ${x.name}`),
+              h("span", null, x.detail ?? ""))),
+            flow.phase === "running" ? h("div", { className: "qbw-hint", style: { marginTop: "10px" } }, "安装中，请别关这个窗口…") : null,
+            flow.phase === "done" ? h("div", { className: "qbw-hint", style: { marginTop: "10px" } }, "如果刚注册过 DSH 组件，需要重启 DSH 才生效。") : null) : null,
+
+          h("div", { className: "qbw-actions", style: { marginTop: "14px" } },
+            flow.phase === "form" ? h(Btn, { kind: "qbw-btn", onClick: startInstall }, "开始安装") : null,
+            flow.phase === "form" ? h(Btn, { kind: "qbw-btn2", onClick: () => setFlow(null) }, "取消") : null,
+            flow.phase === "done" || flow.phase === "error" ? h(Btn, { kind: "qbw-btn", onClick: () => setFlow(null) }, "关闭") : null))) : null;
+
       return h("div", null,
         actionBar,
         cards,
+        installModal,
         h(AdvancedSettings, { note: "备份恢复 / 插件与桥接日志：排障时再展开" },
           h("div", { className: "qbw-actions" }, h(Btn, { kind: "qbw-btn2", onClick: loadLogs, disabled: !!busy }, busy === "logs" ? "读取中…" : "读取日志")),
           backupSection,
