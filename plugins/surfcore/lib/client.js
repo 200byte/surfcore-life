@@ -137,6 +137,11 @@ window.__ModuleLoader__.load({
 .qbw-modal .qbw-hint{color:#9aa3ad}
 .qbw-modal .qbw-chip{background:rgba(255,255,255,.12);color:#f2f5f7}
 .qbw-modal .qbw-actions{margin-top:14px}
+/* 弹窗内所有文字强制浅色：浅色主题下主题变量是深字，会和深色卡片糊在一起 */
+.qbw-modal h3,.qbw-modal p,.qbw-modal label,.qbw-modal div,.qbw-modal span,.qbw-modal strong,.qbw-modal li{color:#f2f5f7}
+.qbw-modal .qbw-hint{color:#9aa3ad}
+.qbw-modal input.qbw-input{background:rgba(255,255,255,.08);color:#f2f5f7;border:1px solid #3a3f46}
+.qbw-modal input[type=checkbox]{accent-color:#2f6fed}
 /* ── Token 额度页 ─────────────────────────────────────────────── */
 .qbw-budget-summary{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap;border:1px solid rgba(31,111,235,.28);background:linear-gradient(135deg,rgba(31,111,235,.10),rgba(255,122,162,.06));border-radius:12px;padding:12px 14px;margin:0 0 12px}
 .qbw-budget-summary .qbw-kicker{margin-bottom:2px}
