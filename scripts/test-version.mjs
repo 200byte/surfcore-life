@@ -23,6 +23,10 @@ assert.equal(plugin.version, pkg.version, '插件 package.json 与根版本不�
 const indexSrc = fs.readFileSync(path.join(root, 'plugins/surfcore/lib/index.js'), 'utf8');
 assert.ok(!/const VERSION = '\d+\.\d+\.\d+/.test(indexSrc), 'index.js 里仍在硬编码版本');
 
+const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+const readmeVer = /\|\s*版本\s*\|\s*`([^`]+)`/.exec(readme)?.[1];
+assert.equal(readmeVer, pkg.version, `README 顶部版本（${readmeVer}）与 package.json（${pkg.version}）不一致`);
+
 const changelog = fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8');
 assert.ok(
   changelog.includes(`## [${pkg.version}]`) || changelog.includes(`## ${pkg.version}`),

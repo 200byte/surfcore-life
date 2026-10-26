@@ -7,7 +7,7 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.1.0` |
+| 版本 | `0.4.1` |
 | 目标 DSH | `0.2.1-rc.2`（`npm run verify:adaptation` 可逐项复核） |
 | 平台 | Windows（沙箱 ACL / SnowLuma / 启动脚本都与它绑定） |
 | 许可 | MIT（SnowLuma 是第三方专有运行时，**不随本仓库分发**） |
@@ -15,6 +15,23 @@
 
 > 🔒 **本仓库不含任何真实数据**：角色卡是脱敏示例（`roles/`），记忆卡是空壳（`examples/`），
 > 群号 / 群友名单 / QQ 号 / B站 mid 全部为占位符。运行时数据永远只在你自己的机器上。
+
+---
+
+## 第一次装（4 条命令）
+
+```powershell
+git clone --depth 1 https://github.com/Mieksido/surfcore.git
+cd surfcore
+npm install
+node scripts/setup-dsh.mjs web      # profile 名按你 DSH 的改（默认 web）
+```
+
+重启 DSH → 设置 → SurfCore → **诊断 → 一键安装（全部）**（自动发现 SnowLuma、写白名单、起桥接）。
+
+> 不想敲命令：`powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/Mieksido/surfcore/main/scripts/bootstrap.ps1 | iex"`
+
+前置：Windows + Node ≥22.13 + DSH 0.2.1-rc.2 + SnowLuma（第三方，需自己装并扫码）。详见 [INSTALL.md](docs/guides/INSTALL.md)。
 
 ---
 
