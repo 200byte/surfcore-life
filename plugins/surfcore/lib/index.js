@@ -1165,9 +1165,17 @@ export function apply(ctx) {
     let names = [];
     try { names = fs.readdirSync(root).filter((n) => { try { return fs.statSync(path.join(root, n)).isDirectory(); } catch { return false; } }); } catch { return ''; }
     for (const name of names) {
+      // 两种都能作为"已装进 DSH"的证据：
+      //   ① profile package.json 的 dsh.profile.bundles 里有 surfcore；
+      //   ② cordis.patch.yml 里有我们托管的 mcp 条目（不同版本写的是不同 id）。
+      try {
+        const pkg = JSON.parse(fs.readFileSync(path.join(root, name, 'package.json'), 'utf8'));
+        const bundles = pkg?.dsh?.profile?.bundles;
+        if (Array.isArray(bundles) && bundles.includes('surfcore')) return name;
+      } catch {}
       try {
         const patch = fs.readFileSync(path.join(root, name, 'cordis.patch.yml'), 'utf8');
-        if (patch.includes('surfcore')) return name;
+        if (/surfcore|mcp-snowluma/.test(patch)) return name;
       } catch {}
     }
     return '';
@@ -1235,7 +1243,16 @@ export function apply(ctx) {
       if (dshProfileWithSurfcore()) {
         done(dshStep, true, '已注册，跳过');
       } else {
-        const r = await runCommand(process.execPath, [path.join(QQBOT_ROOT, 'scripts', 'setup-dsh.mjs')], { cwd: QQBOT_ROOT, timeoutMs: 120_000 });
+        // profile 必须跟着"当前 DSH 用的那个"走：setup-dsh 默认写 web，
+        // 而用户可能是 desktop/自定义 profile —— 写错地方插件根本不会出现。
+        let profile = String(process.env.DSH_PROFILE ?? '').trim();
+        if (!profile) {
+          try {
+            const names = fs.readdirSync(path.join(DSH_HOME, 'profiles')).filter((n) => fs.statSync(path.join(DSH_HOME, 'profiles', n)).isDirectory() && !n.includes('.'));
+            profile = names.includes('web') ? 'web' : (names[0] ?? 'web');
+          } catch { profile = 'web'; }
+        }
+        const r = await runCommand(process.execPath, [path.join(QQBOT_ROOT, 'scripts', 'setup-dsh.mjs'), profile], { cwd: QQBOT_ROOT, timeoutMs: 120_000 });
         done(dshStep, r.ok, r.ok ? '已注册（重启 DSH 生效）' : (r.out.slice(-400)));
       }
 
