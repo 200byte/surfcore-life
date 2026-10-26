@@ -45,6 +45,33 @@ global.fetch = async (url) => {
   assert.equal(r.updateAvailable, true);
 }
 
+// 3b) Release 落后于 tag（只打了 tag 没发 Release）→ 取较高的 tag
+global.fetch = async (url) => {
+  if (String(url).includes('/releases/latest')) return { ok: true, json: async () => ({ tag_name: 'v0.4.8', html_url: 'https://example.test/048' }) };
+  if (String(url).includes('/tags')) return { ok: true, json: async () => [{ name: 'v0.5.3' }, { name: 'v0.5.2' }] };
+  return { ok: false, json: async () => ({}) };
+};
+{
+  const r = await inspectVersionComponent({ id: 'surfcore', name: '本体', dir, versionRepo: 'Mieksido/surfcore' }, { fetch: true });
+  assert.equal(r.latestVersion, '0.5.3', 'Release 落后时应取 tag 的较高版本');
+  assert.equal(r.updateAvailable, true);
+}
+
+// 3c) 本地比发布版新 → 标 ahead，不报"有更新"
+{
+  const newer = fs.mkdtempSync(path.join(os.tmpdir(), 'sfc-upd-ahead-'));
+  fs.writeFileSync(path.join(newer, 'package.json'), JSON.stringify({ version: '0.6.0' }));
+  global.fetch = async (url) => {
+    if (String(url).includes('/releases/latest')) return { ok: true, json: async () => ({ tag_name: 'v0.5.3', html_url: 'x' }) };
+    if (String(url).includes('/tags')) return { ok: true, json: async () => [{ name: 'v0.5.3' }] };
+    return { ok: false, json: async () => ({}) };
+  };
+  const r = await inspectVersionComponent({ id: 'surfcore', name: '本体', dir: newer, versionRepo: 'Mieksido/surfcore' }, { fetch: true });
+  assert.equal(r.updateAvailable, false);
+  assert.equal(r.ahead, true, '本地领先应标 ahead');
+  fs.rmSync(newer, { recursive: true, force: true });
+}
+
 // 4) 没有 versionRepo → 明确说不可查，而不是崩
 {
   const r = await inspectVersionComponent({ id: 'x', name: 'x', dir }, { fetch: true });

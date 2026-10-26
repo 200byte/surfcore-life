@@ -97,21 +97,31 @@ function semverCompare(a, b) {
 
 async function fetchLatestRelease(repo) {
   const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'surfcore-updates' };
+  const found = [];
   try {
     const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, { headers, signal: AbortSignal.timeout(8000) });
     if (res.ok) {
       const data = await res.json();
-      if (data?.tag_name) return { tag: data.tag_name, url: data.html_url ?? `https://github.com/${repo}/releases` };
+      if (data?.tag_name) found.push({ tag: data.tag_name, url: data.html_url ?? `https://github.com/${repo}/releases`, source: 'release' });
     }
   } catch {}
   try {
-    const res = await fetch(`https://api.github.com/repos/${repo}/tags?per_page=1`, { headers, signal: AbortSignal.timeout(8000) });
+    const res = await fetch(`https://api.github.com/repos/${repo}/tags?per_page=10`, { headers, signal: AbortSignal.timeout(8000) });
     if (res.ok) {
       const list = await res.json();
-      if (Array.isArray(list) && list[0]?.name) return { tag: list[0].name, url: `https://github.com/${repo}/releases` };
+      if (Array.isArray(list)) {
+        for (const tag of list) {
+          if (!tag?.name) continue;
+          found.push({ tag: tag.name, url: `https://github.com/${repo}/releases`, source: 'tag' });
+          break; // 只要最新的一个 tag，具体大小下面统一比较
+        }
+      }
     }
   } catch {}
-  return null;
+  if (!found.length) return null;
+  // ⚠️ Release 可能落后于 tag（常见：只打了 tag 忘了发 Release），取版本号较高的那个。
+  found.sort((a, b) => semverCompare(b.tag, a.tag));
+  return found[0];
 }
 
 export async function inspectVersionComponent(component, { fetch: doFetch = true } = {}) {
@@ -132,14 +142,19 @@ export async function inspectVersionComponent(component, { fetch: doFetch = true
     return { ...base, available: false, installedVersion, reason: '拉不到 GitHub 版本（网络或限流）' };
   }
   const latestVersion = latest.tag.replace(/^v/i, '');
+  const cmp = semverCompare(latestVersion, installedVersion);
   return {
     ...base,
     available: true,
     installedVersion,
     latestVersion,
-    updateAvailable: semverCompare(latestVersion, installedVersion) > 0,
+    updateAvailable: cmp > 0,
+    ahead: cmp < 0,
+    versionSource: latest.source ?? '',
     downloadUrl: latest.url,
-    reason: '按版本号比对（不依赖 git）',
+    reason: cmp < 0
+      ? `本地 v${installedVersion} 领先发布版 v${latestVersion}（开发副本或已抢先升级）`
+      : '按版本号比对（不依赖 git）',
   };
 }
 

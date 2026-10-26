@@ -1299,7 +1299,10 @@ window.__ModuleLoader__.load({
                 ? updates.results.map((item) => {
                   if (item.available) {
                     const ver = item.latestVersion
-                      ? ` v${item.installedVersion ?? "?"}→v${item.latestVersion}` : "";
+                      ? (item.ahead
+                        ? ` 本地 v${item.installedVersion} 领先发布 v${item.latestVersion}`
+                        : ` v${item.installedVersion ?? "?"}→v${item.latestVersion}`)
+                      : "";
                     return `${item.name}${item.updateAvailable ? `（有更新${ver}）` : `（最新${ver}）`}`;
                   }
                   return `${item.name}（${item.installedVersion ? `v${item.installedVersion} · ` : ""}不可查）`;
