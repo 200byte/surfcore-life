@@ -508,7 +508,7 @@ export function createUpdatesService({ stateDir, components, blockedReason = () 
   /** 这批结果里"值得提示"的项：有更新，且这次的远端 commit 没被 dismiss 过。 */
   function pendingOf(results) {
     return (results ?? []).filter((item) => item?.available && item.updateAvailable
-      && state.dismissed[item.id] !== item.remote);
+      && state.dismissed[item.id] !== (item.remote ?? `v${item.latestVersion ?? ''}`));
   }
 
   function status() {
@@ -557,6 +557,54 @@ export function createUpdatesService({ stateDir, components, blockedReason = () 
   }
 
   /** 应用更新：只更新点名的那几个组件。返回每一项的结果。 */
+  /** 非 git 安装（zip / 开发副本）的直接更新：下载仓库 zip → 解压 → 覆盖文件。 */
+  async function updateFromZip(item, report) {
+    const dir = normalizeDir(item.dir);
+    const repo = String(item.versionRepo ?? '').trim();
+    if (!dir || !repo) return { ok: false, error: '缺少安装目录或版本仓库' };
+    const url = String(item.archiveUrl ?? `https://github.com/${repo}/archive/refs/heads/main.zip`);
+    const tmp = path.join(stateDir, `tmp-update-${Date.now()}`);
+    fs.mkdirSync(tmp, { recursive: true });
+    const zipFile = path.join(tmp, 'pkg.zip');
+    try {
+      pluginLog(`[updates] 下载 ${url}`);
+      const res = await fetch(url, { signal: AbortSignal.timeout(180_000) });
+      if (!res.ok) return { ok: false, error: `下载失败：HTTP ${res.status}` };
+      fs.writeFileSync(zipFile, Buffer.from(await res.arrayBuffer()));
+
+      await new Promise((resolve, reject) => {
+        execFile('powershell', ['-NoProfile', '-Command',
+          `Expand-Archive -LiteralPath '${zipFile}' -DestinationPath '${tmp}' -Force`],
+        { windowsHide: true, timeout: 120_000 }, (error) => (error ? reject(error) : resolve()));
+      });
+
+      const entries = fs.readdirSync(tmp, { withFileTypes: true }).filter((d) => d.isDirectory() && /^surfcore-/.test(d.name));
+      const src = entries.length ? path.join(tmp, entries[0].name) : '';
+      if (!src || !fs.existsSync(path.join(src, 'package.json'))) return { ok: false, error: '解压结果里没有发现仓库根目录' };
+
+      // 更新前留个"从哪个版本升上来"的标记，方便回滚时知道该回到哪个 tag。
+      try {
+        const backupDir = path.join(stateDir, 'backups');
+        fs.mkdirSync(backupDir, { recursive: true });
+        fs.writeFileSync(path.join(backupDir, `update-${Date.now()}.json`), `${JSON.stringify({
+          component: item.id, from: report?.installedVersion ?? '', to: report?.latestVersion ?? '',
+          at: new Date().toISOString(),
+          rollback: `重新下载 https://github.com/${repo}/archive/refs/tags/v${report?.installedVersion ?? ''}.zip 覆盖回去`,
+        }, null, 2)}
+`, 'utf8');
+      } catch {}
+
+      // 覆盖文件（保留目录本身：junction 指着它，删目录会断链）
+      fs.cpSync(src, dir, { recursive: true, force: true });
+      pluginLog(`[updates] ${item.id} 已覆盖到 v${report?.latestVersion ?? '?'}`);
+      return { ok: true, message: `${item.name} 已更新到 v${report?.latestVersion ?? '?'}`, restart: '重启 DSH' };
+    } catch (error) {
+      return { ok: false, error: String(error?.message ?? error) };
+    } finally {
+      try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
+    }
+  }
+
   async function apply(ids) {
     if (applying) return { ok: false, error: '正在更新中，请稍候', results: [] };
     const wanted = new Set((Array.isArray(ids) ? ids : []).map(String));
@@ -575,6 +623,12 @@ export function createUpdatesService({ stateDir, components, blockedReason = () 
         if (report.blocked) { results.push({ id: item.id, ok: false, error: report.blocked }); continue; }
         const blocked = blockedReason(item);
         if (blocked) { results.push({ id: item.id, ok: false, error: blocked }); continue; }
+
+        if (report.channel === 'version') {
+          const done = await updateFromZip(item, report);
+          results.push({ id: item.id, ...done });
+          continue;
+        }
 
         if (report.channel === 'release') {
           // 构建产物型（桌宠）：下 zip → 校验 → 交给组件自己的安装器。
@@ -626,7 +680,8 @@ export function createUpdatesService({ stateDir, components, blockedReason = () 
     for (const row of state.results ?? []) {
       if (!row?.available || !row.updateAvailable) continue;
       if (wanted && !wanted.has(String(row.id))) continue;
-      state.dismissed[row.id] = row.remote;
+      // 版本号通道没有 remote：用 v<latest> 当 key，和 pendingOf 保持一致。
+      state.dismissed[row.id] = row.remote ?? `v${row.latestVersion ?? ''}`;
     }
     persist();
     return status();
