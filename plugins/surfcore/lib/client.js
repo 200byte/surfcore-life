@@ -1297,7 +1297,15 @@ window.__ModuleLoader__.load({
               })),
             h("div", { className: "qbw-hint" }, "已在跑的服务不会重复启动；QQ 启动时会按需打开已安装的 SnowLuma（仍需你扫码）。人格卡在「角色」页维护（和角色包在一起），这里不再重复显示。")),
           h("div", { className: "qbw-card" },
-            h("h4", null, "更新 ", h(StatusDot, { ok: !(updates.pendingCount > 0), warn: updates.pendingCount > 0 }, updates.pendingCount > 0 ? `${updates.pendingCount} 个可更新` : "已是最新")),
+            h("h4", null, "更新 ", (() => {
+              const rows = updates.results ?? [];
+              const bad = rows.filter((x) => !x.available);
+              const stale = rows.filter((x) => x.versionStale);
+              if (updates.pendingCount > 0) return h(StatusDot, { ok: false, warn: true }, `${updates.pendingCount} 个可更新`);
+              if (bad.length) return h(StatusDot, { ok: false, warn: true }, `部分查不到（${bad[0].name}：${bad[0].reason || "网络/限流"}）`);
+              if (stale.length) return h(StatusDot, { ok: false, warn: true }, "用的是缓存结果（上次拉取失败）");
+              return h(StatusDot, { ok: true }, "已是最新");
+            })()),
             h("div", { className: "qbw-kv" }, h("span", null, "上次检查"), h("span", null, updates.lastCheckAt ? fmtTime(updates.lastCheckAt) : "还没查过")),
             h("div", { className: "qbw-kv" }, h("span", null, "组件"), h("span", null,
               (updates.results ?? []).length
@@ -1307,6 +1315,7 @@ window.__ModuleLoader__.load({
                       ? (item.ahead
                         ? ` 本地 v${item.installedVersion} 领先发布 v${item.latestVersion}`
                         : ` v${item.installedVersion ?? "?"}→v${item.latestVersion}`)
+                        + (item.versionStale ? "（缓存）" : "")
                       : "";
                     return `${item.name}${item.updateAvailable ? `（有更新${ver}）` : `（最新${ver}）`}`;
                   }

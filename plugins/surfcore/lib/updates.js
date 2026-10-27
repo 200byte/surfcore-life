@@ -95,6 +95,8 @@ function semverCompare(a, b) {
   return 0;
 }
 
+const latestCache = new Map(); // repo -> { tag, url, at }
+
 async function fetchLatestRelease(repo) {
   const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'surfcore-updates' };
   const found = [];
@@ -118,10 +120,17 @@ async function fetchLatestRelease(repo) {
       }
     }
   } catch {}
-  if (!found.length) return null;
+  if (!found.length) {
+    // 拉不到（限流 403 / 断网）时：6 小时内成功过的结果还能用，标 stale 让界面说清
+    const cached = latestCache.get(repo);
+    if (cached && Date.now() - cached.at < 6 * 3600_000) return { ...cached, stale: true };
+    return null;
+  }
   // ⚠️ Release 可能落后于 tag（常见：只打了 tag 忘了发 Release），取版本号较高的那个。
   found.sort((a, b) => semverCompare(b.tag, a.tag));
-  return found[0];
+  const best = found[0];
+  latestCache.set(repo, { tag: best.tag, url: best.url, at: Date.now() });
+  return best;
 }
 
 export async function inspectVersionComponent(component, { fetch: doFetch = true } = {}) {
@@ -151,6 +160,7 @@ export async function inspectVersionComponent(component, { fetch: doFetch = true
     updateAvailable: cmp > 0,
     ahead: cmp < 0,
     versionSource: latest.source ?? '',
+    versionStale: latest.stale === true,
     downloadUrl: latest.url,
     reason: cmp < 0
       ? `本地 v${installedVersion} 领先发布版 v${latestVersion}（开发副本或已抢先升级）`
