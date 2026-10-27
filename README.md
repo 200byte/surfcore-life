@@ -1,4 +1,20 @@
-# SurfCore — 给 DSH agent 一个真实的身份：QQ × B站 × 桌宠
+# SurfCore Life — 不必改代码，也能参与设计自己的生活
+
+这是基于 [Mieksido/SurfCore](https://github.com/Mieksido/surfcore) 的独立衍生开发。保留 QQ/B站、目的、记忆和预算基础设施，新增 Agent 可发现、可解释、可预览、可执行、可验证及回滚的受限生活参数工具。原作者来源、MIT 和第三方许可边界见 [PROVENANCE.md](docs/life-settings/PROVENANCE.md) 与原 [LICENSE](LICENSE)。
+
+从本目录开始（Node 22.13+）：
+
+~~~powershell
+npm ci
+npm run test:life
+npm run demo:life
+# 录屏逐步模式：
+npm run demo:life -- --step
+~~~
+
+演示使用真实 MCP、真实配置事务与真实 B站 planner/scheduler，模型与平台一侧明确区分为隔离演示或已授权线上验收。不会安装到已有 DSH，不会向 QQ/B站发送消息。完整入口见 [工具使用](docs/life-settings/README.md)、[演示](docs/life-settings/DEMO.md)、[参数审计](docs/life-settings/PARAMETER-AUDIT.md) 和 [本轮交付](docs/life-settings/DELIVERY.md)。
+
+以下保留上游功能、安装及历史说明。上游此前的真机验证记录不代表本衍生版已在本机真实账号验收。
 
 **中文** | [English](README.en.md)
 
@@ -7,7 +23,7 @@
 
 | | |
 | --- | --- |
-| 版本 | `0.6.0` |
+| 版本 | `0.7.0` |
 | 目标 DSH | `0.2.1-rc.2 或更新（rc.3 已能安装，功能未完整回归）`（`npm run verify:adaptation` 可逐项复核） |
 | 平台 | Windows（沙箱 ACL / SnowLuma / 启动脚本都与它绑定） |
 | 许可 | MIT（SnowLuma 是第三方专有运行时，**不随本仓库分发**） |
@@ -35,7 +51,7 @@
 两个实测踩过的点（v0.4.5）：
 
 - **必须从仓库根目录安装**：插件里有 19 处 `../../../src/xxx.js`（人设、存储、token 预算等），
-  只装 `plugins/surfcore` 会去找 `D:\src\...` 然后报模块不存在。
+  只装 `plugins/surfcore` 会在仓库父目录错误查找 `src/...`，然后报模块不存在。
 - **装完要刷新页面**（F5）或重启 DSH：客户端模块图是页面加载时的快照，新 bundle 要重新拉，
   否则设置里暂时看不到 SurfCore —— 不是装坏了。
 

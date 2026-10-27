@@ -1,6 +1,6 @@
 // 钉住 DSH 0.1.7 preset 装配的「防漂移」契约（纯离线，不需要 DSH 在跑）：
 //   1. bundle patch（plugins/surfcore/presets/*.patch.yml）与仓库权威源
-//      （dsh/agent-presets/<preset>/{preset.yml,agent.cordis.yml}）逐字一致；
+//      （dsh/agent-presets/<preset>/{preset.yml,agent.cordis.yml}）除 CRLF/LF 外逐字一致；
 //   2. patch 的形状符合新机制：insert 一条 @deepseek-ai/dsh-agent-preset 行，
 //      config 里带 id/name/description/order/plugins；
 //   3. 守卫行只能用「从 profile 目录可解析」的引用方式（裸说明符），
@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import yaml from 'js-yaml';
 import {
   BUNDLE_DIR, GUARD_SPECIFIER, PRESETS, REPO_ROOT,
-  buildPatches, patchFileFor, presetRowId,
+  renderPatch, patchFileFor, presetRowId,
 } from './build-agent-preset-patches.mjs';
 
 let failures = 0;
@@ -25,11 +25,13 @@ function ok(cond, label) {
 const read = (p) => fs.readFileSync(p, 'utf8');
 const load = (p) => yaml.load(read(p));
 
-console.log('## 1. 产物与源不漂移（--check 语义）');
+console.log('## 1. 产物与源不漂移（仅归一化 Git checkout 的 CRLF/LF）');
 {
-  const results = buildPatches({ check: true, log: () => {} });
-  for (const { file, changed } of results) {
-    ok(!changed, `${path.relative(REPO_ROOT, file)} 与源一致（不一致请跑 node scripts/build-agent-preset-patches.mjs）`);
+  const lf = (text) => text.replace(/\r\n/g, '\n');
+  for (const name of PRESETS) {
+    const file = patchFileFor(name);
+    const unchanged = fs.existsSync(file) && lf(read(file)) === lf(renderPatch(name));
+    ok(unchanged, `${path.relative(REPO_ROOT, file)} 与源一致（不一致请跑 node scripts/build-agent-preset-patches.mjs）`);
   }
 }
 

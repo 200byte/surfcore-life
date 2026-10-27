@@ -54,6 +54,8 @@ export function plannedWakeTime(state, now = new Date()) {
   if (!state || state.date !== now.toLocaleDateString('sv-SE') || state.fired
     || !['wake', 'skip'].includes(state.action) || !Number.isFinite(Number(state.at))) return null
   const at = new Date(now)
-  at.setHours(0, Number(state.at), 0, 0)
+  // The scheduler compares integer minutes; a fractional slot first becomes
+  // eligible at the next whole minute, rather than the truncated earlier one.
+  at.setHours(0, Math.ceil(Number(state.at)), 0, 0)
   return at.toISOString()
 }

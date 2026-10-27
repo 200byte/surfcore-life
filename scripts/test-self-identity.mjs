@@ -72,8 +72,10 @@ test('B站 侧自我卡：有 QQ 锚点、QQ 号打码、带隐私句', () => {
   assert.match(block, /【你是谁 · 同一副人格/);
   assert.match(block, /昵称「示例小肥鱼」/);
   assert.match(block, /UID 1000000003/);
-  assert.match(block, /328\*\*\*\*288/, 'QQ 号要打码');
-  assert.ok(!block.includes('1000000001'), 'B站 侧不能出现完整 QQ 号');
+  const fixtureUin = String(CARD.qqUin);
+  const expectedMask = `${fixtureUin.slice(0, 3)}****${fixtureUin.slice(-3)}`;
+  assert.ok(block.includes(expectedMask), 'QQ 号要按当前夹具打码');
+  assert.ok(!block.includes(fixtureUin), 'B站 侧不能出现完整 QQ 号');
   assert.match(block, /QQ 资料卡/);
   assert.match(block, /【隐私】/);
   assert.match(block, /人格名「小咪」/);

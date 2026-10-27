@@ -1,6 +1,6 @@
 {
   "name": "surfcore",
-  "version": "0.6.3",
+  "version": "0.7.0",
   "private": true,
   "license": "MIT",
   "description": "SurfCore — QQ ↔ DeepSeek Harness bridge + QQ/B站 merged plugin: one repo, one settings window, QQ + Bilibili + QQ presets.",
@@ -9,6 +9,11 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "test:life": "node scripts/test-life-settings.mjs && node scripts/test-life-mcp.mjs && node scripts/test-life-qq-runtime.mjs && node scripts/test-life-bili-runtime.mjs && node scripts/test-life-export.mjs",
+    "demo:life": "node scripts/demo-life-settings.mjs",
+    "life": "node scripts/life-settings.mjs",
+    "life:connection": "node scripts/prepare-life-connection.mjs",
+    "test:life:live": "node scripts/test-life-live.mjs",
     "start": "node src/bridge.js",
     "test:audit": "node scripts/test-audit.mjs",
     "test:token": "node scripts/test-token-economy.mjs && node scripts/test-reply-wait.mjs && node scripts/test-qq-model-view.mjs && node scripts/test-qq-preset-contract.mjs",

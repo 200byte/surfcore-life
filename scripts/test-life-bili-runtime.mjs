@@ -54,6 +54,7 @@ try {
   assert.equal(replanned.scheduleChanges[0].previousSlots[0].id, 'old')
   assert.equal(nightNotBeforeMinute(replanned, 20, fixedNow), 735)
   assert.equal(plannedWakeTime({ date: old.date, action: 'done' }, fixedNow), null)
+  assert.equal(plannedWakeTime({ date: old.date, action: 'wake', at: 1329.95 }, fixedNow), new Date(2026, 9, 27, 22, 10).toISOString(), 'fractional slots report their first eligible integer minute')
   const adopted = { ...old, scheduleSettingsFingerprint: nightSettingsFingerprint({ maxWakesPerDay: 3 }) }
   assert.deepEqual(reconcileNightPlanState(adopted, { maxWakesPerDay: 3 }, { now: fixedNow, revision: 2 }).slots, old.slots)
   // Feasible earliest placement does not guarantee random placement can fit

@@ -1,5 +1,7 @@
 # 路线图与路线守则（ROADMAP）
 
+> **独立衍生开发 · 2026-10-27：** 本轮按当前用户授权，优先开发 Agent 可理解、可预览、可验证、可回滚的生活参数管理；路线比较与影响分析见 [life-settings/DESIGN.md](life-settings/DESIGN.md)，源码审计见 [life-settings/PARAMETER-AUDIT.md](life-settings/PARAMETER-AUDIT.md)。这是独立本地分支，不沿用下方原作者机器的在线验收结论，不修改云宝项目，不执行真实平台发送或持续付费调用。以下原路线和历史保留作来源记录。
+
 > 本文件是「做什么、按什么顺序做、什么时候该放弃」的唯一权威。**改路线先改这里**，再动代码。
 > 配套：开工动线见 [`../AGENTS.md`](../AGENTS.md)，踩坑见 [`PITFALLS.md`](PITFALLS.md)，交接见 [`HANDOFF.md`](HANDOFF.md)。
 
