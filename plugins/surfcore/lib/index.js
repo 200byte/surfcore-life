@@ -1911,7 +1911,8 @@ export function apply(ctx) {
         return;
       }
       if (suffix === '/electron-install') {
-        const r = await installElectronRuntime({ stateDir: STATE_DIR, log: (m) => pluginLog(m) });
+        const src = ['github', 'mirror'].includes(String(body.source ?? '')) ? String(body.source) : 'auto';
+        const r = await installElectronRuntime({ stateDir: STATE_DIR, log: (m) => pluginLog(m), source: src });
         try { if (r.electronPath) petService.configure({ electronPath: r.electronPath }); } catch {}
         json(res, 200, r);
         return;

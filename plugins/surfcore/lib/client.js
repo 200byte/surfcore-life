@@ -4244,8 +4244,8 @@ window.__ModuleLoader__.load({
       }, []);
       useEffect(() => { read(); }, [read]);
 
-      const act = async (action, body) => {
-        setBusy(action); setErr("");
+      const act = async (action, body, busyKey) => {
+        setBusy(busyKey || action); setErr("");
         try {
           const r = await api("/pet/" + action, { method: "POST", body: body ?? {} });
           if (r.ok === false) { setErr(r.error || "操作失败"); return; }
@@ -4304,8 +4304,10 @@ window.__ModuleLoader__.load({
           h("div", { className: "qbw-actions" },
             h(Btn, { kind: "qbw-btn2", onClick: () => setForm((f) => ({ ...f, source: st?.defaults?.zipUrl || "https://github.com/Mieksido/surfpet/releases/latest/download/pet-pack.zip" })) }, "用官方最新版"),
             h(Btn, { kind: "qbw-btn2", disabled: busy === "electron-detect", onClick: () => act("electron-detect") }, busy === "electron-detect" ? "检测中…" : "检测 Electron"),
-            h(Btn, { kind: "qbw-btn2", disabled: busy === "electron-install", onClick: () => act("electron-install") },
+            h(Btn, { kind: "qbw-btn2", disabled: busy === "electron-install", onClick: () => act("electron-install", { source: "auto" }) },
               busy === "electron-install" ? "下载中…（约 125MB，2~5 分钟）" : `下载 Electron ${st?.defaults?.electronVersion || "45.0.0"}`),
+            h(Btn, { kind: "qbw-btn2", disabled: busy === "electron-install-gh", onClick: () => act("electron-install", { source: "github" }, "electron-install-gh") },
+              busy === "electron-install-gh" ? "从 GitHub 下载中…" : "GitHub 官方源"),
             h(Btn, { kind: "qbw-btn2", disabled: busy === "config", onClick: () => act("config", form) }, busy === "config" ? "保存中…" : "保存设置")),
           h("div", { className: "qbw-hint", style: { marginTop: "4px" } },
             st?.electronDetected ? `已检测到 Electron：${st.electronDetected}` : "没检测到 Electron：点「下载 Electron」自动装到 ~/.dsh/surfcore/pet/runtime（约 125MB）")),

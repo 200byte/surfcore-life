@@ -128,6 +128,11 @@ export function electronDownloadUrl(version = ELECTRON_VERSION) {
   return `${ELECTRON_MIRROR}/${version}/electron-v${version}-win32-x64.zip`;
 }
 
+/** GitHub 官方源（镜像挂掉时的备选；国内可能慢）。 */
+export function electronGitHubUrl(version = ELECTRON_VERSION) {
+  return `https://github.com/electron/electron/releases/download/v${version}/electron-v${version}-win32-x64.zip`;
+}
+
 /** 常见 Electron 位置（按可信度排）。cfgPath / appDir 传进来就优先用。 */
 export function electronCandidates({ cfgPath = '', appDir = '', stateDir = '' } = {}) {
   const out = [];
@@ -149,35 +154,51 @@ export function detectElectronPath(options = {}) {
 }
 
 /** 下载并解压 Electron 到 <stateDir>/runtime/electron-v<版本>/。 */
-export async function installElectronRuntime({ stateDir, log = () => {}, version = ELECTRON_VERSION } = {}) {
+export async function installElectronRuntime({ stateDir, log = () => {}, version = ELECTRON_VERSION, source = 'auto' } = {}) {
   if (!stateDir) throw new Error('缺少 stateDir');
   const dest = path.join(stateDir, 'runtime', `electron-v${version}`);
   const exe = path.join(dest, 'electron.exe');
   if (fs.existsSync(exe)) return { ok: true, already: true, electronPath: exe, dir: dest };
 
-  const tmp = path.join(stateDir, 'runtime', `tmp-${Date.now()}`);
-  fs.mkdirSync(tmp, { recursive: true });
-  const zip = path.join(tmp, 'electron.zip');
-  const url = electronDownloadUrl(version);
-  log(`[pet] 下载 Electron ${version}：${url}`);
+  // auto：先镜像再官方；也允许调用方强制指定（镜像挂了 / 官方更快）
+  const urls = source === 'github'
+    ? [electronGitHubUrl(version)]
+    : source === 'mirror'
+      ? [electronDownloadUrl(version)]
+      : [electronDownloadUrl(version), electronGitHubUrl(version)];
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(600_000), redirect: 'follow' });
-  if (!res.ok) throw new Error(`下载 Electron 失败：HTTP ${res.status}`);
   const { Readable } = await import('node:stream');
   const { pipeline } = await import('node:stream/promises');
-  await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(zip));
-
-  fs.mkdirSync(dest, { recursive: true });
-  await new Promise((resolve, reject) => {
-    const child = spawn('powershell', ['-NoProfile', '-Command',
-      `Expand-Archive -LiteralPath '${zip}' -DestinationPath '${dest}' -Force`],
-    { windowsHide: true, stdio: 'ignore' });
-    child.on('error', reject);
-    child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`解压失败（exit ${code}）`))));
-  });
-  try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
-  if (!fs.existsSync(exe)) throw new Error('解压后没找到 electron.exe');
-  return { ok: true, electronPath: exe, dir: dest, version };
+  let lastError = null;
+  for (const url of urls) {
+    const tmp = path.join(stateDir, 'runtime', `tmp-${Date.now()}`);
+    fs.mkdirSync(tmp, { recursive: true });
+    const zip = path.join(tmp, 'electron.zip');
+    try {
+      log(`[pet] 下载 Electron ${version}：${url}`);
+      const res = await fetch(url, { signal: AbortSignal.timeout(900_000), redirect: 'follow' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(zip));
+      fs.mkdirSync(dest, { recursive: true });
+      await new Promise((resolve, reject) => {
+        const child = spawn('powershell', ['-NoProfile', '-Command',
+          `Expand-Archive -LiteralPath '${zip}' -DestinationPath '${dest}' -Force`],
+        { windowsHide: true, stdio: 'ignore' });
+        child.on('error', reject);
+        child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`解压失败（exit ${code}）`))));
+      });
+      if (!fs.existsSync(exe)) throw new Error('解压后没找到 electron.exe');
+      return { ok: true, electronPath: exe, dir: dest, version, source: url };
+    } catch (error) {
+      lastError = error;
+      const msg = String(error?.message ?? error);
+      log(`[pet] 源失败（${url}）：${msg}`);
+      try { fs.rmSync(dest, { recursive: true, force: true }); } catch {}
+    } finally {
+      try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
+    }
+  }
+  throw new Error(`下载 Electron 失败（镜像和官方源都试过了）：${String(lastError?.message ?? lastError ?? '未知错误')}`);
 }
 
 export function createPetService({ stateDir, pluginLog = () => {}, subprocess = null, getSubprocess = null }) {

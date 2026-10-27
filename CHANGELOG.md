@@ -4,6 +4,14 @@
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 发布规则见 [docs/guides/VERSIONS.md](docs/guides/VERSIONS.md)。
 
+## [0.6.1] - 2026-10-27
+
+### 新增
+
+- **Electron 下载支持双源**：默认先 npmmirror（国内快），失败自动退到 GitHub 官方源；
+  设置页多一个「GitHub 官方源」按钮，镜像挂了也能手动走官方。
+  下载失败时错误里会带两个源各自的失败原因。
+
 ## [0.6.0] - 2026-10-27
 
 ### 新增
