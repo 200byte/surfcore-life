@@ -30,6 +30,7 @@ import {
 import { resolvePersonaFile } from './persona.js';
 import { discoverSnowLumaConnection } from '../../../src/snowluma-conn.js';
 import { buildInstallChecks, installOk, planDoctorFix } from './doctor.js';
+import { VOICE_PORTS, readPackCharacters, validateCharacter } from './voice-health.js';
 import {
   autoSnapshot, beforeSwitchSnapshot, characterDetail, characterOverview, createCharacterFromPayload,
   deleteCharacter, manualSnapshot, migrateIfNeeded, restoreCharacterSnapshot, switchToCharacter,
@@ -749,12 +750,33 @@ export function apply(ctx) {
       result.biliBackup = saved.backup;
       result.warnings.push('B站配置已保存；生物钟每轮重读配置，下一轮即生效。');
     }
+    // 角色名校验：tts.character 必须是 [voice.characters] 里的名字，不能填音色 id。
+    const incomingCharacter = body?.unified?.socialV2?.voice?.tts?.character;
+    if (typeof incomingCharacter === 'string' && incomingCharacter.trim()) {
+      const packsDir = path.resolve(String(currentQq?.voicePacks?.dir || path.join(QQBOT_ROOT, 'state', 'voice-packs')));
+      const { characters } = readPackCharacters(packsDir);
+      const verdict = validateCharacter(incomingCharacter, characters);
+      if (!verdict.ok) {
+        json(res, 400, { ok: false, error: verdict.reason, characters: verdict.characters });
+        return;
+      }
+    }
     if (body.unified && typeof body.unified === 'object') {
       const saved = saveUnified(body.unified);
       result.saved.unified = true;
       result.unified = saved.config;
     }
     if (result.saved.unified) {
+      // 切了语音路由就要当场告诉用户"目标服务没起"（否则现象是"切了没反应"）。
+      try {
+        const tts = readUnified().config?.socialV2?.voice?.tts ?? {};
+        if (tts.enabled) {
+          const need = tts.route === 'cloud' ? { port: 8767, label: '云端语音包' } : { port: 9880, label: 'GPT-SoVITS（本地音色）' };
+          if (!(await portOpen(need.port, 800))) {
+            result.warnings.push(`语音路由已切到「${tts.route === 'cloud' ? '云端' : '本地'}」，但 ${need.label}（${need.port}）没在监听：发语音会失败。`);
+          }
+        }
+      } catch {}
       try { writeAlignmentBriefs(); } catch (error) { result.warnings.push(`对齐简报重建失败：${error?.message ?? error}`); }
       try { scheduler?.invalidate?.(); } catch {}
       startSyncTimer();
@@ -1363,6 +1385,32 @@ export function apply(ctx) {
       const all = readAll();
       add('隐私策略', PRIVACY_POLICY_VERSION >= 3, `v${PRIVACY_POLICY_VERSION}（私信/密钥/PII 一律不跨平台）`);
       const install = await installChecks();
+      // 语音链路：只报端口状态 + 一句怎么补（2026-10-27 用户踩过"只起了 8765 就以为装好了"）
+      try {
+        const v = readUnified().config?.socialV2?.voice?.tts ?? {};
+        for (const item of VOICE_PORTS) {
+          const open = await portOpen(item.port, 800);
+          const hint = item.key === 'voxd'
+            ? '启动语音包：voice-packs\voice-local\run.bat'
+            : item.key === 'gsv'
+              ? '本地音色还需要 GPT-SoVITS：voice-local\gsv.bat，等约 40 秒'
+              : '云端包：voice-cloud\run.bat，并在设置→语音里启用';
+          const optional = item.key !== 'voxd';
+          install.push({
+            name: item.label, level: open ? 'ok' : (optional ? 'warn' : 'fail'), ok: open,
+            detail: open ? `端口 ${item.port} 在监听` : `端口 ${item.port} 没监听${v.route === 'cloud' && item.key === 'cloud' ? '（当前路由是云端，会直接失败）' : ''}`,
+            fix: open ? '' : hint,
+          });
+        }
+        if (v.enabled && v.route === 'local' && !install.find((x) => x.name.includes('GPT-SoVITS'))?.ok) {
+          install.push({
+            name: '语音配置', level: 'warn', ok: true,
+            detail: `路由=本地，角色=${v.character ?? '(未填)'}：本地引擎没起，合成会 503`,
+            fix: '先起 gsv.bat；只想马上能用可把路由切到「本机 Piper」或云端',
+          });
+        }
+      } catch {}
+
       // 同名检查只留一条（installChecks 与旧 checks 有重叠，比如"QQ 桥接源码"）。
       const seen = new Set();
       const allChecks = [...install, ...checks].filter((c) => (seen.has(c.name) ? false : (seen.add(c.name), true)));
@@ -2592,6 +2640,18 @@ export function apply(ctx) {
 
   // 诊断日志：证明插件真的被装配，且知道它读的是哪一份配置。
   pluginLog(`已激活 v${VERSION}；surfcore=${maskPath(path.dirname(QQ_CONFIG))}；biliTools=${maskPath(BILI_MJS)}；privacy=v${PRIVACY_POLICY_VERSION}`);
+  // 语音链路自检：本地音色要 9880（GPT-SoVITS）+ 8765（voxd）两个都在；少了就在日志里说清楚，
+  // 免得用户以为"语音功能坏了"（2026-10-27 实测：只起 8765 时发语音全 503）。
+  void (async () => {
+    try {
+      const v = readUnified().config?.socialV2?.voice?.tts ?? {};
+      if (!v.enabled) return;
+      const voxd = await portOpen(8765, 800);
+      const gsv = await portOpen(9880, 800);
+      if (!voxd) pluginLog('[语音] 8765（voxd）没监听：发语音会失败，先跑 voice-local\run.bat');
+      else if (v.route === 'local' && !gsv) pluginLog(`[语音] 8765 在跑但 9880（GPT-SoVITS）没起：角色 ${v.character ?? '(空)'} 走本地音色会 503，先跑 voice-local\gsv.bat 等约 40 秒（也可切到 Piper/云端）`);
+    } catch {}
+  })();
 }
 
 export default { name, inject, apply };
