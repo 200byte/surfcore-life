@@ -97,6 +97,44 @@ function semverCompare(a, b) {
 
 const latestCache = new Map(); // repo -> { tag, url, at }
 
+/**
+ * 不消耗 API 配额的最新版本：请求 github.com/<repo>/releases/latest，
+ * 从 302 的 Location 里读 tag（每次检查省一次 API 配额，未认证 60/h 根本不够用）。
+ */
+async function fetchLatestByRedirect(repo) {
+  try {
+    const res = await fetch(`https://github.com/${repo}/releases/latest`, {
+      method: 'GET',
+      redirect: 'manual',
+      signal: AbortSignal.timeout(8000),
+      headers: { 'User-Agent': 'surfcore-updates' },
+    });
+    const loc = res?.headers?.get?.('location') || '';
+    const m = /\/releases\/tag\/([^/?#]+)/.exec(loc);
+    if (m && m[1]) {
+      return { tag: decodeURIComponent(m[1]), url: `https://github.com/${repo}/releases/tag/${m[1]}`, source: 'redirect' };
+    }
+  } catch {}
+  return null;
+}
+
+/** 只查 tags（一次 API 调用），用于"redirect 说没更新，但可能只打了 tag 没发 Release"的复核。 */
+async function fetchLatestTagOnly(repo) {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/tags?per_page=1`, {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'surfcore-updates' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (res.ok) {
+      const list = await res.json();
+      if (Array.isArray(list) && list[0]?.name) {
+        return { tag: list[0].name, url: `https://github.com/${repo}/releases`, source: 'tag' };
+      }
+    }
+  } catch {}
+  return null;
+}
+
 async function fetchLatestRelease(repo) {
   const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'surfcore-updates' };
   const found = [];
@@ -146,7 +184,14 @@ export async function inspectVersionComponent(component, { fetch: doFetch = true
   } catch {}
   if (!installedVersion) return { ...base, available: false, installedVersion: '', reason: '读不到本地 package.json' };
   if (!doFetch) return { ...base, available: true, installedVersion, latestVersion: null, updateAvailable: false, reason: '本次未拉取' };
-  const latest = await fetchLatestRelease(repo);
+  let latest = await fetchLatestByRedirect(repo);
+  if (!latest) latest = await fetchLatestRelease(repo);
+  // redirect 只看得到"最新 Release"；如果它不比本地新，再花一次 API 查 tag 复核
+  // （常见情形：只打了 tag 忘了发 Release）。
+  if (latest && semverCompare(latest.tag, installedVersion) <= 0) {
+    const tagOnly = await fetchLatestTagOnly(repo);
+    if (tagOnly && semverCompare(tagOnly.tag, latest.tag) > 0) latest = tagOnly;
+  }
   if (!latest) {
     return { ...base, available: false, installedVersion, reason: '拉不到 GitHub 版本（网络或限流）' };
   }

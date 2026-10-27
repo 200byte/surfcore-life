@@ -4,6 +4,15 @@
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 发布规则见 [docs/guides/VERSIONS.md](docs/guides/VERSIONS.md)。
 
+## [0.6.3] - 2026-10-27
+
+### 优化
+
+- **检查更新不再吃 GitHub API 配额**：优先请求 `github.com/<repo>/releases/latest` 的 302 跳转，
+  从 Location 里读版本（不消耗未认证的 60 次/小时配额）；拿不到才退回 API。
+  若 redirect 显示"没更新"，才花一次 API 查 tags 复核（防止"只打 tag 没发 Release"被漏掉）。
+  多用户同时检查时不会再互相挤爆配额。
+
 ## [0.6.2] - 2026-10-27
 
 ### 修复
