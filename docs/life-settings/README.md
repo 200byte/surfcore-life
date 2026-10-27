@@ -11,7 +11,7 @@ npm run demo:life
 npm run demo:life -- --step
 ~~~
 
-默认演示不调用模型、不连接平台。真实模型验收需显式启用另一个入口，见 [LIVE.md](LIVE.md)。[DEMO.md](DEMO.md) 给出录屏步骤和证据目录。
+默认演示不调用模型、不连接平台。真实模型验收需显式启用另一个入口，见 [LIVE.md](LIVE.md)。用户另行授权后已完成B站真实认证和feed数量消费者验收，方法与边界见 [LIVE-BILI.md](LIVE-BILI.md)。[DEMO.md](DEMO.md) 给出录屏步骤和证据目录。
 
 ## 正式工具
 

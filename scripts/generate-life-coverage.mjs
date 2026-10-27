@@ -4,7 +4,8 @@ import {fileURLToPath} from 'node:url';
 import {PARAMETERS,READ_ONLY} from '../src/life-settings/catalog.js';
 const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const rows=PARAMETERS.map((p)=>{
-  const scope=p.id.startsWith('bili.night.')?'真实隔离 planner/scheduler 消费链已验证；未登录平台':
+  const scope=p.id==='bili.night.maxVideos'?'真实登录nav/feed消费者已验收，候选数量5→3；恢复5已由调度器验证':
+    p.id.startsWith('bili.night.')?'真实隔离 planner/scheduler 消费链已验证；平台读取层另见LIVE-BILI':
     p.id.startsWith('qq.')||p.id.startsWith('purpose.')?'QQ 隔离消费者链代表性用例通过；未逐个穷尽边界/未上线账号':
     '配置消费者已接线；推荐/分享/监听实际行为尚未验证';
   return '| '+[p.id,p.name,JSON.stringify(p.rule),p.permission==='approval'?'本地维护者审批':'可自主调整',p.effect,scope].join(' | ')+' |';

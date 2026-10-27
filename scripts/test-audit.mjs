@@ -7,7 +7,7 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const tests = [
   // Local-only lifecycle regression gate. Live/paid checks are always opt-in.
   'test-life-settings.mjs', 'test-life-mcp.mjs', 'test-life-qq-runtime.mjs',
-  'test-life-bili-runtime.mjs', 'test-life-export.mjs',
+  'test-life-bili-runtime.mjs', 'test-life-export.mjs', 'test-life-bili-credential.mjs',
   'test-audit-bridge.mjs', 'test-audit-protocol.mjs', 'test-audit-protocol-helpers.mjs',
   'test-audit-security.mjs', 'test-audit-security-mcp.mjs',
   'test-audit-setup.mjs', 'test-audit-setup-guards.mjs',

@@ -25,11 +25,11 @@
 | purpose.idleThresholdMs | 主动联系前安静时间 | {"type":"integer","min":60000,"max":43200000} | 可自主调整 | next-schedule | QQ 隔离消费者链代表性用例通过；未逐个穷尽边界/未上线账号 |
 | purpose.maxCandidates | 候选目的数量 | {"type":"integer","min":3,"max":10} | 可自主调整 | next-schedule | QQ 隔离消费者链代表性用例通过；未逐个穷尽边界/未上线账号 |
 | purpose.pendingTtlDays | 待续目的保留天数 | {"type":"integer","min":1,"max":90} | 可自主调整 | next-schedule | QQ 隔离消费者链代表性用例通过；未逐个穷尽边界/未上线账号 |
-| bili.night.windows | B站活动时间窗口 | {"type":"windows"} | 可自主调整 | next-plan | 真实隔离 planner/scheduler 消费链已验证；未登录平台 |
-| bili.night.maxWakesPerDay | B站每日浏览机会 | {"type":"integer","min":0,"max":12} | 可自主调整 | next-plan | 真实隔离 planner/scheduler 消费链已验证；未登录平台 |
-| bili.night.skipChance | B站跳过机会概率 | {"type":"number","min":0,"max":0.95} | 可自主调整 | next-plan | 真实隔离 planner/scheduler 消费链已验证；未登录平台 |
-| bili.night.maxVideos | B站单次浏览数量 | {"type":"integer","min":1,"max":20} | 可自主调整 | next-plan | 真实隔离 planner/scheduler 消费链已验证；未登录平台 |
-| bili.night.minGapMin | B站浏览最短间隔（分钟） | {"type":"integer","min":1,"max":120} | 可自主调整 | next-plan | 真实隔离 planner/scheduler 消费链已验证；未登录平台 |
+| bili.night.windows | B站活动时间窗口 | {"type":"windows"} | 可自主调整 | next-plan | 真实隔离 planner/scheduler 消费链已验证；平台读取层另见LIVE-BILI |
+| bili.night.maxWakesPerDay | B站每日浏览机会 | {"type":"integer","min":0,"max":12} | 可自主调整 | next-plan | 真实隔离 planner/scheduler 消费链已验证；平台读取层另见LIVE-BILI |
+| bili.night.skipChance | B站跳过机会概率 | {"type":"number","min":0,"max":0.95} | 可自主调整 | next-plan | 真实隔离 planner/scheduler 消费链已验证；平台读取层另见LIVE-BILI |
+| bili.night.maxVideos | B站单次浏览数量 | {"type":"integer","min":1,"max":20} | 可自主调整 | next-plan | 真实登录nav/feed消费者已验收，候选数量5→3；恢复5已由调度器验证 |
+| bili.night.minGapMin | B站浏览最短间隔（分钟） | {"type":"integer","min":1,"max":120} | 可自主调整 | next-plan | 真实隔离 planner/scheduler 消费链已验证；平台读取层另见LIVE-BILI |
 | bili.preferences.like | 愿意探索的兴趣词 | {"type":"keywords"} | 可自主调整 | next-read | 配置消费者已接线；推荐/分享/监听实际行为尚未验证 |
 | bili.preferences.keywords | 额外探索关键词 | {"type":"keywords"} | 可自主调整 | next-read | 配置消费者已接线；推荐/分享/监听实际行为尚未验证 |
 | bili.preferences.weights | 兴趣词权重 | {"type":"weights"} | 可自主调整 | next-read | 配置消费者已接线；推荐/分享/监听实际行为尚未验证 |

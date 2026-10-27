@@ -22,6 +22,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { accountBili, biliState } from '../lib/state-paths.mjs'
 import { config } from '../lib/config.mjs'
+import { loadBiliCredential } from '../lib/session.mjs'
 import { readWatchHistory } from '../lib/watch-history.mjs'
 import {
   bvSetFromTexts, candidateScore, filterRecentlyPicked, normalizePreferences,
@@ -102,7 +103,7 @@ try {
 } catch { /* 第一次跑没有备忘 */ }
 
 // ── ③ 取候选（搜索轮换 + 热门/排行/关注）──────────────────────────────────
-const cred = JSON.parse(fs.readFileSync(accountBili('credentials.json'), 'utf8'))
+const { credential: cred } = loadBiliCredential()
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 const H = { 'user-agent': UA, referer: 'https://search.bilibili.com/', cookie: `SESSDATA=${cred.sessdata}; bili_jct=${cred.bili_jct}; buvid3=${cred.buvid3}` }
 const MIXIN_TAB = [46,47,18,2,53,8,23,32,15,50,10,31,58,3,45,35,27,43,5,49,33,9,42,19,29,28,14,39,12,38,41,13,37,48,7,16,24,55,40,61,26,17,0,1,60,51,30,4,22,25,54,21,56,59,6,63,57,62,11,36,20,34,44,52]

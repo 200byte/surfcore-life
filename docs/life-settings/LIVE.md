@@ -20,7 +20,7 @@ node scripts/test-life-live.mjs --live
 node scripts/test-life-live.mjs --live --key-file 'C:\explicitly-authorized\credentials.env'
 ```
 
-固定请求 `https://api.deepseek.com/chat/completions` 的 `deepseek-flash`，关闭 thinking，每次输出最多 1400 tokens，至多 14 次请求；单次请求最多 45 秒，总计最多五分钟。API、工具或约束失败时停止，不重试，不启动真实数字生命，也不自动对外发送。
+固定请求 `https://api.deepseek.com/chat/completions` 的 `deepseek-flash`，关闭 thinking，每次输出最多 1400 tokens，至多 14 次请求；单次请求最多 45 秒，总计最多五分钟。API、工具或约束失败时停止，不自动重试；只运行短时隔离测试Agent，不唤醒现有数字生命，不自动对外发送。
 
 每次验收建立全新 `state/life-live/<时间与随机 ID>/isolated-root` 和 `isolated-home`，不会读取或改写现有生命的身份、记忆、配置或 Session。密钥仅留在请求进程内存，不传给 MCP 或 planner 子进程，不写日志；错误与产物对密钥进行脱敏。此目录属于运行数据，不能发布或加入普通 Git 提交。
 
