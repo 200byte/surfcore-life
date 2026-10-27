@@ -289,7 +289,11 @@ export function validateQrAccount({ target = 'owner', account = {}, selfMid = ''
   }
   const mustBe = expectedMid || selfMid;
   if (mustBe && mid !== String(mustBe)) {
-    return { ok: false, status: 'wrong-account', error: `扫码的是 ${who}，不是当前小肥鱼 ${expectedName || ''}（${mustBe}）；要换号请先手动处理旧凭据。` };
+    // 2026-10-27 修：用户明确勾了「与主人同一个号」时，应该允许**换号**（主人=小肥鱼=新号），
+    // 否则会卡死：管理员卡片已改成新号、小肥鱼还指着旧号 → 永远报"不是当前小肥鱼"。
+    // 只放行"换成本人同一个号"（主人号），不放行换成任意第三个号（防被换人）。
+    if (allowSameAsOwner && ownerMid && mid === String(ownerMid)) return { ok: true, switched: true };
+    return { ok: false, status: 'wrong-account', error: `扫码的是 ${who}，不是当前小肥鱼 ${expectedName || ''}（${mustBe}）。要点：① 只想用同一个号（主人=小肥鱼）→ 勾选「与主人同一个号」再扫；② 要换到别的号 → 先点「清除旧 B站 凭据（归档）」再扫。` };
   }
   return { ok: true };
 }

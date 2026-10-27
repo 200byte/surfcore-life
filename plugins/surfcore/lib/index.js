@@ -2395,6 +2395,46 @@ export function apply(ctx) {
       }
       return;
     }
+    // 换 B站 号：把旧凭据/对齐归档后清掉，允许重新扫码绑定（2026-10-27 用户反馈"换号被卡死"）
+    if (pathname.endsWith('/account/reset')) {
+      const target = body.target === 'owner' ? 'owner' : (body.target === 'both' ? 'both' : 'fish');
+      const archived = [];
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const destDir = path.join(BACKUP_DIR, `bili-switch-${stamp}`);
+      const archive = (file, label) => {
+        try {
+          if (!fs.existsSync(file)) return;
+          fs.mkdirSync(destDir, { recursive: true });
+          const dest = path.join(destDir, `${label}${path.extname(file) || '.json'}`);
+          fs.copyFileSync(file, dest);
+          archived.push(maskPath(dest));
+        } catch (error) {
+          pluginLog(`[换号] 归档失败 ${label}：${String(error?.message ?? error)}`);
+        }
+      };
+      const ownerCred = path.join(BILI_DIR, 'owner-credentials.json');
+      if (target === 'fish' || target === 'both') {
+        archive(BILI_CRED, 'fish-credentials');
+        archive(ALIGN_FILE, 'alignments');
+        try { fs.rmSync(BILI_CRED, { force: true }); } catch {}
+      }
+      if (target === 'owner' || target === 'both') {
+        archive(ownerCred, 'owner-credentials');
+        try { fs.rmSync(ownerCred, { force: true }); } catch {}
+      }
+      // 清掉配置里对应的 mid，避免下一次扫码又被"不是当前小肥鱼/主人"挡住
+      try {
+        const bili = readBiliConfig().config ?? {};
+        if (target === 'fish' || target === 'both') bili.self = { mid: '', name: '' };
+        if (target === 'owner' || target === 'both') bili.owner = { mid: '', name: '' };
+        saveBiliConfig(bili);
+      } catch (error) {
+        pluginLog(`[换号] 清配置失败：${String(error?.message ?? error)}`);
+      }
+      pluginLog(`[换号] 已归档并清除 target=${target}；归档 ${archived.length} 个文件`);
+      json(res, 200, { ok: true, target, archived });
+      return;
+    }
     if (pathname.endsWith('/qr/cancel')) {
       const id = String(body.id ?? '').trim();
       if (id) cancelQrLogin(id);

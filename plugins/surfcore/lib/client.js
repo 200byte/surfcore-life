@@ -2246,6 +2246,7 @@ window.__ModuleLoader__.load({
     function BiliQrModal({ target = "owner", onClose, onConfirmed }) {
       const [state, setState] = useState({ phase: "starting" });
       const [allowSameAsOwner, setAllowSameAsOwner] = useState(false);
+      const [notice, setNotice] = useState("");
       const idRef = useRef("");
       const confirmedRef = useRef(onConfirmed);
       useEffect(() => { confirmedRef.current = onConfirmed; }, [onConfirmed]);
@@ -2336,10 +2337,21 @@ window.__ModuleLoader__.load({
           state.phase === "expired" ? h("p", { className: "qbw-err" }, "二维码已过期，请重新生成。") : null,
           state.phase === "wrong" ? h("div", null,
             h("p", { className: "qbw-err" }, `✗ ${state.error || "扫错账号"}`),
-            h("p", { className: "qbw-hint" }, "扫错号不会保存。确认扫的是要绑定的那个账号；如果配置里的 mid 不对，先去「管理员」卡片改对。")) : null,
+            h("p", { className: "qbw-hint" }, "扫错号不会保存。要点：① 想用主人同一个号 → 勾下方「我只有一个 B站 号」再扫；② 想换到别的号 → 点下面「换号（清除旧凭据）」再扫。"),
+            h("p", { className: "qbw-hint" }, state.hint || "")) : null,
           state.phase === "error" ? h("p", { className: "qbw-err" }, `✗ ${state.error || "扫码失败"}`) : null,
+          notice ? h("p", { className: "qbw-hint", style: { textAlign: "center" } }, notice) : null,
           h("div", { className: "qbw-actions", style: { justifyContent: "center" } },
             live ? null : h(Btn, { onClick: start }, "重新生成"),
+            h(Btn, {
+              kind: "qbw-btn2",
+              onClick: async () => {
+                try {
+                  const r = await api("/bili/account/reset", { method: "POST", body: { target } });
+                  setNotice(`✓ 已清除旧凭据并归档 ${r.archived?.length ?? 0} 个文件；点「重新生成」扫新号即可。`);
+                } catch (e) { setNotice(`✗ ${e.message}`); }
+              },
+            }, "换号（清除旧凭据）"),
             h(Btn, { kind: "qbw-btn2", onClick: close }, "取消"))));
     }
 

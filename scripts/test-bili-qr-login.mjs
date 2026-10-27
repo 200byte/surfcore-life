@@ -3,8 +3,8 @@
 import assert from 'node:assert/strict';
 import { validateQrAccount } from '../plugins/surfcore/lib/bili-qr-login.mjs';
 
-const fish = { mid: '1000000003', name: '示例小肥鱼' };
-const owner = { mid: '10000002', name: '示例主人' };
+const fish = { mid: '1483638708', name: '卡哇伊的小肥鱼' };
+const owner = { mid: '37634003', name: '玛露Marrow' };
 const other = { mid: '99999999', name: '路人' };
 const base = { selfMid: fish.mid, ownerMid: owner.mid };
 
@@ -27,8 +27,11 @@ assert.equal(validateQrAccount({ selfMid: '', ownerMid: owner.mid, target: 'fish
 assert.equal(validateQrAccount({ selfMid: '', ownerMid: owner.mid, target: 'fish', account: owner }).ok, false, '新用户也不能把主人号当鱼');
 // 只有一个 B站 号的用户：显式勾选后才允许主人号 == 鱼号
 assert.equal(validateQrAccount({ selfMid: '', ownerMid: owner.mid, target: 'fish', account: owner, allowSameAsOwner: true }).ok, true, '单账号用户勾选后应放行');
-// 已有 self.mid 时，即使勾选也不允许扫成另一个号（防换人）
-assert.equal(validateQrAccount({ ...base, target: 'fish', account: owner, allowSameAsOwner: true }).ok, false, '已有 self 时勾选也不能换人');
+// 已有 self.mid 时：
+//   · 扫成"主人号"且有勾选 → 允许（单账号用户换到自己的号，2026-10-27 修）
+//   · 扫成任意第三个号 → 仍然拒绝（防被换人）
+assert.equal(validateQrAccount({ ...base, target: 'fish', account: owner, allowSameAsOwner: true }).ok, true, '勾选后应能换成本人同一个号');
+assert.equal(validateQrAccount({ ...base, target: 'fish', account: other, allowSameAsOwner: true }).ok, false, '勾选也不能换成无关的第三个号');
 // 配置本身就写成同一个号（self.mid == owner.mid）时视为单账号，不需要勾选
 assert.equal(validateQrAccount({ selfMid: owner.mid, ownerMid: owner.mid, target: 'fish', account: owner }).ok, true, '配置为同一个号时放行');
 
