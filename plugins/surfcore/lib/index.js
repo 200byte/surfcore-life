@@ -669,7 +669,7 @@ export function apply(ctx) {
       platformStart: platformStartState(),
       // 组件更新：概览「更新」卡与启动弹窗都读它（检查结果是缓存的，不在这里触发网络）。
       updates: updates.status(),
-      scheduler: schedulerStatus,
+      scheduler: { ...schedulerStatus, ...(scheduler?.status?.() ?? {}) },
       snowluma: {
         launcherPath: String(snow.launcherPath ?? ''),
         allowLaunch: snow.allowLaunch === true,

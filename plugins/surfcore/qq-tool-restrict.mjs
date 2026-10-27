@@ -171,6 +171,9 @@ const SAFE_PREFIXES = [
 const SAFE_EXACT = new Set([
   'ask_user_question',
   'todo_write',
+  // Closed opt-in management surface; no namespace wildcard or approval tool.
+  ...['state','catalog','explain','preview','apply','verify','history','rollback','observe']
+    .map((action) => 'mcp__surfcore-life__life_' + action),
 ])
 
 export function apply(ctx) {

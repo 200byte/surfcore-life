@@ -30,6 +30,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { config } from '../lib/config.mjs'
 import { loadScores } from '../lib/scores.mjs'
+import { applyManagedSettings, extractManagedValues, settingsRevision } from '../../../../src/life-settings/runtime.js'
+import { nightSettingsFingerprint, reconcileNightPlanState, nightNotBeforeMinute } from '../../lib/life-runtime.js'
 import {
   buildNightSchedule, nextPendingSlot, markScheduleSlot, qualityByWindow, minToHHMM,
 } from '../lib/night-schedule.mjs'
@@ -54,7 +56,10 @@ const parseHHMM = (s) => { const [h, m] = String(s).split(':').map(Number); retu
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes() }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-const cfg = load(CFG, DEFAULTS)
+// The old per-character file remains readable, but explicit managed choices
+// have the final say. Otherwise it silently masks successful Agent edits.
+const cfg = applyManagedSettings({ night: load(CFG, DEFAULTS) }, 'bili').night
+const managedRevision = settingsRevision()
 
 // 窗口：优先 windows[]；没有就退回 windowStart/windowEnd 一个窗口（兼容旧配置）
 // 每个窗口自带 wakes（醒来几次，2026-10-18 主人定）；0 = 这个窗口不醒 ✓
@@ -83,19 +88,31 @@ function windowsOf(c) {
 const WINDOWS = windowsOf(cfg)
 // 2026-10-23 用户选 C：每个窗口至少 1 次；全天总数 ≤ maxWakesPerDay（硬上限 12）。
 // 不再把“各窗口 wakes 之和”当上限——27 次需求和 12 次上限本身就冲突。
-const MAX_WAKES = Math.min(12, Math.max(0, Number(cfg.maxWakesPerDay ?? 12) || 12))
-const MIN_GAP_MIN = Math.max(0, Number(cfg.minGapMin ?? 20) || 20)
+const MAX_WAKES = Math.min(12, Math.max(0, Number(cfg.maxWakesPerDay ?? 12)))
+const MIN_GAP_MIN = Math.max(0, Number(cfg.minGapMin ?? 20))
 
-const st = load(STATE, {})
+const st = reconcileNightPlanState(load(STATE, {}), cfg, { revision: managedRevision })
+const adoptedSettings = {
+  revision: managedRevision,
+  schedulePolicy: 'strict-gap-v1',
+  fingerprint: nightSettingsFingerprint(cfg),
+  values: extractManagedValues({ night: {
+    ...cfg, maxWakesPerDay: MAX_WAKES, minGapMin: MIN_GAP_MIN,
+    skipChance: Number(cfg.skipChance ?? 0.3), maxVideos: Number(cfg.maxVideos ?? 5),
+  } }, 'bili'),
+  plannedAt: new Date().toISOString(),
+}
 const wakesToday = (s) => (s.date === today() ? Number(s.wakes ?? 0) : 0)
 
 function donePlan(state, reason) {
   return {
     ...(state && typeof state === 'object' ? state : {}),
     date: today(), action: 'done', done: true,
-    wakes: Number(state?.wakes ?? 0) || 0,
-    watchWakes: Number(state?.watchWakes ?? 0) || 0,
+    wakes: state?.date === today() ? Number(state?.wakes ?? 0) || 0 : 0,
+    watchWakes: state?.date === today() ? Number(state?.watchWakes ?? 0) || 0 : 0,
     reason,
+    lifeSettings: adoptedSettings,
+    scheduleSettingsFingerprint: adoptedSettings.fingerprint,
   }
 }
 
@@ -103,6 +120,8 @@ function planFromSlot(state, slot) {
   const kind = slot.kind === 'base' ? '保底' : '加餐'
   return {
     ...state,
+    lifeSettings: adoptedSettings,
+    scheduleSettingsFingerprint: adoptedSettings.fingerprint,
     date: today(),
     slots: state.slots,
     warnings: Array.isArray(state.warnings) ? state.warnings : [],
@@ -118,7 +137,7 @@ function planFromSlot(state, slot) {
     wakes: Number(state.wakes ?? 0) || 0,
     watchWakes: Number(state.watchWakes ?? 0) || 0,
     reason: slot.action === 'skip'
-      ? `这次不想看（掷骰子掷到了「不看」那 ${Math.round(Number(cfg.skipChance ?? 0.3) * 100)}%）`
+      ? `调度器随机抽中轻醒（概率 ${Math.round(Number(cfg.skipChance ?? 0.3) * 100)}%；不是主体表达的偏好）`
       : '',
     roll: slot.action === 'wake' ? 'watch' : 'skip',
     maxVideos: cfg.maxVideos ?? 5,
@@ -127,7 +146,7 @@ function planFromSlot(state, slot) {
 }
 
 function makePlan() {
-  const now = nowMin()
+  const now = nightNotBeforeMinute(st, MIN_GAP_MIN)
   if (MAX_WAKES === 0) return donePlan(st, 'maxWakesPerDay=0 → 今天不醒')
 
   // 已经生成过今天的排程：只推进 slots，不重新掷骰子。
@@ -150,8 +169,10 @@ function makePlan() {
     skipChance: Number(cfg.skipChance ?? 0.3),
     nowMin: now,
     quality: qualityByWindow(loadScores(), WINDOWS, { days: 30 }),
+    strictGap: true,
   })
   const base = {
+    ...st,
     date: today(),
     slots: schedule.slots,
     warnings: schedule.warnings,
@@ -246,7 +267,7 @@ if (cmd === 'clock') {
     }
     const slots = Array.isArray(p.slots) ? p.slots : []
     if (p.slotId) markScheduleSlot(p, p.slotId, 'skipped', nowMin())
-    save(STATE, { ...p, slots, fired: true, done: false, wakes: Number(p.wakes ?? 0) + 1, watchWakes: Number(p.watchWakes ?? 0) || 0 })
+    save(STATE, { ...p, slots, fired: true, done: false, wakes: Number(p.wakes ?? 0) + 1, watchWakes: Number(p.watchWakes ?? 0) || 0, wokeAt: new Date().toISOString() })
     logEvent('night-skip', `轻醒：${p.reason ?? ''}`)
     console.log('WHALE_SKIP ' + (p.reason ?? ''))
     process.exit(0)

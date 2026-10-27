@@ -92,6 +92,7 @@ export function qualityByWindow(scores = {}, windows = [], { now = Date.now(), d
  * @param {number} opts.nowMin 当前本地分钟（0~1439）
  * @param {Record<string,number>} opts.quality 每个窗口的历史质量
  * @param {() => number} opts.random
+ * @param {boolean} opts.strictGap If true, drop a conflicting slot instead of compressing the promised gap.
  */
 export function buildNightSchedule({
   windows = [],
@@ -101,6 +102,7 @@ export function buildNightSchedule({
   nowMin = 0,
   quality = {},
   random = Math.random,
+  strictGap = false,
 } = {}) {
   const wins = normalizeNightWindows(windows)
   const warnings = []
@@ -164,6 +166,10 @@ export function buildNightSchedule({
       if (at < now && now < w.end) at = now + 1
       // 放不下：base 必须保；extra 丢掉；两者都记 warning
       if (at >= w.end) {
+        if (strictGap) {
+          warnings.push(`${w.label} 的第 ${i + 1} 次放不下 ${gap} 分钟间隔或已经错过窗口，已跳过；不压缩间隔、不补跑`)
+          continue
+        }
         if (i === 0) {
           const fallback = Math.max(w.start, Math.min(w.end - 1, Number.isFinite(lastAt) ? lastAt + gap : w.start))
           at = fallback
@@ -176,6 +182,14 @@ export function buildNightSchedule({
         }
       }
       if (at < now && now < w.end) at = now + 1
+      // A fallback/late adjustment must not put an alleged valid slot outside
+      // its window or before the actual not-before time. The managed planner
+      // promises a real minimum gap, even when that means fewer opportunities.
+      if (strictGap && (at >= w.end || at < now
+        || (Number.isFinite(lastAt) && at < lastAt + gap))) {
+        warnings.push(`${w.label} 的第 ${i + 1} 次不满足实际时间/间隔，已跳过；不补跑`)
+        continue
+      }
       const skip = random() < Number(skipChance ?? 0.3)
       slots.push({
         id: `s${id += 1}`,

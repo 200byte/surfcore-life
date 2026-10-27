@@ -14,9 +14,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { DEFAULT_BILI_FISH_GUARD } from './fish-guard.mjs'
 import { DEFAULT_LIMITS } from './limits.mjs'
+import { applyManagedSettings } from '../../../../src/life-settings/runtime.js'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || '.'
-export const configPath = process.env.SURFCORE_BILI_CONFIG || path.join(HOME, '.dsh', 'surfcore', 'bili.config.json')
+export const configPath = process.env.SURFCORE_BILI_CONFIG || path.join(process.env.DSH_HOME || path.join(HOME, '.dsh'), 'surfcore', 'bili.config.json')
 
 /** 中性默认值：不含任何作者的个人信息，换个人也能跑。 */
 export const DEFAULTS = {
@@ -82,11 +83,13 @@ export function config() {
     const stat = fs.statSync(configPath)
     key = `${stat.mtimeMs}:${stat.size}`
   } catch { /* 没有用户配置 */ }
-  if (cache && key === cacheKey) return cache
+  // Managed choices have an independent revision. Reapply them even when the
+  // legacy file is unchanged; never mutate the cached base configuration.
+  if (cache && key === cacheKey) return applyManagedSettings(cache, 'bili')
   let user = {}
   try { user = JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch { /* 没配置就用默认 */ }
   cache = merge(DEFAULTS, user)
   cache.__hasUserFile = Object.keys(user).length > 0
   cacheKey = key
-  return cache
+  return applyManagedSettings(cache, 'bili')
 }

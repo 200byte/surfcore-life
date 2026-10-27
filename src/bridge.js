@@ -63,6 +63,7 @@ import {
   blockMessage, evaluateBudget, localDayKey, readBudget, readDailyUsage,
 } from './token-budget.js';
 import { createBiliMemory } from './bili-memory.js';
+import { createQqLifeRuntime } from './life-settings/qq-runtime.js';
 import {
   appendMemoryInboxEvent, looksNoteworthyMessage, resolveMemoryCardPaths,
 } from './memory-card.js';
@@ -1649,6 +1650,54 @@ let stateDirHardened = null;
 // ── 主流程 ──────────────────────────────────────────────────────────────────
 async function main() {
   const cfg = loadConfig();
+  let lifeRuntimeReady = false;
+  let lifeLastWake = null;
+  const lifeSettings = createQqLifeRuntime({
+    config: cfg,
+    loadBaseConfig: loadConfig,
+    onAdopt: ({ changedIds }) => {
+      if (lifeRuntimeReady && changedIds.some((id) => id.startsWith('qq.socialV2.wake.'))) {
+        // An agent/admin's explicit per-chat wake choice always wins over defaults.
+        refreshAllDefaultWakeConfigsV2({ preserveSleepUntil: true });
+      }
+      if (lifeRuntimeReady && changedIds.includes('qq.socialV2.proactive.enabled')) {
+        for (const key of socialV2.conversations.keys()) {
+          if (cfg.socialV2?.proactive?.enabled === false) cancelProactiveCheckV2(key);
+          else scheduleProactiveCheckV2(key);
+        }
+      }
+    },
+    getDetails: () => {
+      const chats = [...socialV2.conversations.values()];
+      const finiteSleeps = chats.map((st) => Date.parse(st.wakeConfig?.sleepUntil || '')).filter((at) => Number.isFinite(at) && at > Date.now());
+      const nextPurposeAt = Number(purposeState.nextFireAt) || 0;
+      const planned = [...finiteSleeps, ...(nextPurposeAt > Date.now() ? [nextPurposeAt] : [])];
+      const latestActivity = Math.max(0, ...chats.map((st) => Math.max(Number(st.lastIncomingAt) || 0, Number(st.lastAiReplyAt) || 0)));
+      const configuredPurposeCarrier = readJsonSafe(path.join(ROOT, 'config.json'), {})?.purpose?.carrier === 'pet' ? 'pet' : 'qq';
+      return {
+        mode: currentMode, paused: socialV2.paused, dshReady,
+        purposeCarrier: purposeCarrierNow(),
+        configuredPurposeCarrier,
+        qqConnected: snowlumaHealth.connected === true,
+        conversationCount: chats.length,
+        explicitWakeChoices: chats.filter((st) => st.wakeConfig?.confirmedBy !== 'default').length,
+        pendingReplyTimers: chats.filter((st) => st.replyCheckTimer).length,
+        pendingProactiveTimers: chats.filter((st) => st.proactiveTimer).length,
+        nextFiniteWakeAt: finiteSleeps.length ? new Date(Math.min(...finiteSleeps)).toISOString() : null,
+        nextPurposeFireAt: purposeState.nextFireAt ? new Date(purposeState.nextFireAt).toISOString() : null,
+        nextWakeAt: planned.length ? new Date(Math.min(...planned)).toISOString() : null,
+        nextFireAt: nextPurposeAt ? new Date(nextPurposeAt).toISOString() : null,
+        lastActivityAt: latestActivity ? new Date(latestActivity).toISOString() : null,
+        lastWake: lifeLastWake,
+        wakeDefaultsApplyTo: 'confirmedBy=default; explicit agent/admin choices are preserved',
+        scheduleEffect: 'Existing reply/proactive/purpose timers retain their planned time; new schedules use the adopted values.',
+        model: { requestedProvider: cfg.dsh.provider, requestedModel: cfg.dsh.model, requestedReasoning: cfg.dsh.reasoningEffort, wireVerified: false },
+      };
+    },
+  });
+  // Adopt before constructing the first purpose schedule. Telemetry needs the
+  // remaining bridge state, so publishing starts after that state is initialized.
+  lifeSettings.refresh({ publish: false });
   fs.mkdirSync(STATE_DIR, { recursive: true });
   hardenStateDirAcl();
   acquireLock();
@@ -9340,10 +9389,14 @@ async function main() {
   }
 
   // 保存推荐/默认参数后，把所有仍使用默认配置的会话同步到新默认值。
-  function refreshAllDefaultWakeConfigsV2() {
+  function refreshAllDefaultWakeConfigsV2({ preserveSleepUntil = false } = {}) {
     let changed = false;
     for (const st of socialV2.conversations.values()) {
-      if (refreshDefaultWakeConfigV2(st)) changed = true;
+      const scheduledSleepUntil = preserveSleepUntil && st.wakeConfig?.infinite === false ? st.wakeConfig.sleepUntil : null;
+      if (refreshDefaultWakeConfigV2(st)) {
+        if (scheduledSleepUntil) st.wakeConfig.sleepUntil = scheduledSleepUntil;
+        changed = true;
+      }
     }
     if (changed) saveSocialV2State();
     return changed;
@@ -10348,6 +10401,12 @@ async function main() {
   }
 
   loadSocialV2State();
+  lifeRuntimeReady = true;
+  lifeSettings.refresh();
+  // Independent of enabled social modes: a disabled feature must still be able
+  // to adopt a later allowed setting, without another model call or a restart.
+  const lifeSettingsTimer = setInterval(() => lifeSettings.refresh(), 5000);
+  lifeSettingsTimer.unref?.();
   // 操作者预写的会话初始提示词（与控制台入口同样在 main() 里；损坏时只读降级，不阻塞启动）。
   loadInitialPrompts();
 
@@ -10935,6 +10994,7 @@ async function main() {
   let purposeEvaluating = false;
   let purposeWarming = false;
   async function runPurpose(options = {}) {
+    lifeSettings.refresh();
     if (purposeEvaluating) return { ok: false, reason: 'busy' };
     purposeEvaluating = true;
     try {
@@ -11203,6 +11263,7 @@ async function main() {
 
   // 实际的 DSH prompt 投递（不再直接对外暴露，统一走 promptQueues 串行队列）。
   async function deliverPromptNow(key, promptText, opts = {}) {
+    lifeSettings.refresh();
     if (!isSessionAllowedInCurrentMode(key)) throw new Error(`当前模式不允许会话 ${key}`);
     // Recheck queued wakes at dispatch time: no model call while paused/disabled
     // and no reserved2 prompt leaking into an ordinary chat after a mode switch.
@@ -11256,6 +11317,11 @@ async function main() {
         }
       }
     }
+    // Append dynamic facts to this newly submitted prompt, never to the static
+    // role/system prefix or earlier history. One block covers ordinary and
+    // autonomous wakes; reading it does not request another model completion.
+    const lifeStateBlock = lifeSettings.stateBlock(opts.wakeReason || 'conversation');
+    if (lifeStateBlock && !promptText.includes('【生活状态｜系统事实】') && !promptText.includes('【生活参数状态】')) promptText += `\n\n${lifeStateBlock}`;
     let content = [{ type: 'text', text: withAlignmentContext(key, withSlangContext(promptText)) }];
     if (Array.isArray(opts.media) && opts.media.length > 0) {
       const imageParts = await resolveMediaList(opts.media);
@@ -11278,6 +11344,8 @@ async function main() {
       if (!opts.silent) await sendToQQ(key, `⚠️ 消息未被接受：${safeErrText}`);
       return { ok: false, error: safeErrText };
     }
+    lifeLastWake = { at: new Date().toISOString(), reason: String(opts.wakeReason || 'conversation').split(':')[0] };
+    lifeSettings.refresh();
     if (wakeSnapshot && isCurrentSession(key, sessionId)
         && socialV2.conversations.get(canonicalV2Key(key)) === wakeState
         && wakeState.agentToken === wakeToken) {
@@ -12693,6 +12761,7 @@ async function main() {
   }
 
   async function sendWakePromptV2(key, reason) {
+    lifeSettings.refresh();
     if (cfg.socialV2?.enabled === false) return;
     if (currentMode !== 'reserved2' || socialV2.paused) return;
     if (!isSessionAllowedInCurrentMode(key)) {
@@ -12857,6 +12926,7 @@ async function main() {
   }
 
   function scheduleReplyCheckV2(key) {
+    lifeSettings.refresh();
     if (cfg.socialV2?.enabled === false) return;
     if (socialV2.paused || currentMode !== 'reserved2') return;
     const st = getSocialV2State(key);
@@ -13344,9 +13414,11 @@ async function main() {
     if (!st || !st.proactiveTimer) return;
     clearTimeout(st.proactiveTimer);
     st.proactiveTimer = null;
+    st.proactiveDueAt = null;
   }
 
   function scheduleProactiveCheckV2(key) {
+    lifeSettings.refresh();
     if (cfg.socialV2?.proactive?.enabled === false) return;
     if (socialV2.paused || currentMode !== 'reserved2') return;
     if (!isSessionAllowedInCurrentMode(key)) return;
@@ -13356,8 +13428,12 @@ async function main() {
     const min = Math.max(60 * 1000, Number(p.checkIntervalMinMs) || 30 * 60 * 1000);
     const max = Math.max(min, Number(p.checkIntervalMaxMs) || 90 * 60 * 1000);
     const delay = Math.floor(min + Math.random() * (max - min));
+    st.proactiveDueAt = Date.now() + delay;
     st.proactiveTimer = setTimeout(() => {
       st.proactiveTimer = null;
+      st.proactiveDueAt = null;
+      lifeSettings.refresh();
+      if (cfg.socialV2?.proactive?.enabled === false) return;
       ensureWakeableV2(st, { key });
       // 刚自然收尾：这一次主动机会先不发，等冷却过去再按原节奏重排。
       if (closureSuppressesWake(st.closure, 'proactiveCheck', Date.now())) {
@@ -13365,9 +13441,10 @@ async function main() {
         scheduleProactiveCheckV2(key);
         return;
       }
-      const idleThreshold = Number(p.idleThresholdMs) || 15 * 60 * 1000;
+      const active = cfg.socialV2?.proactive ?? {};
+      const idleThreshold = Number(active.idleThresholdMs) || 15 * 60 * 1000;
       const idle = Date.now() - (st.lastIncomingAt || 0);
-      const probBase = Number(p.probability);
+      const probBase = Number(active.probability);
       let prob = Math.min(1, Math.max(0, Number.isFinite(probBase) ? probBase : 0.4));
       const pendingThoughts = Array.isArray(st.pendingThoughts) ? st.pendingThoughts.filter((t) => t && (!t.expiresAt || Date.now() < Number(t.expiresAt))).length : 0;
       if (pendingThoughts > 0) prob = Math.min(1, prob * 1.4);

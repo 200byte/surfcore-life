@@ -32,6 +32,7 @@ import * as biliCard from '../src/bili-card.js';
 import * as historyCatchup from '../src/history-catchup.js';
 import * as purposeEngine from '../src/purpose-engine.js';
 import * as conversationClosure from '../src/conversation-closure.js';
+import { createQqLifeRuntime } from '../src/life-settings/qq-runtime.js';
 import { fetchVideoInfo } from '../src/bili-api.js';
 import * as stateAcl from '../src/state-acl.mjs';
 import { createBiliMemory } from '../src/bili-memory.js';
@@ -61,7 +62,7 @@ function wavFixture() {
   return Buffer.concat([h, data]);
 }
 
-export async function bridgeHarness({ config = {}, savedState, files = {}, globals = {}, history = {} } = {}) {
+export async function bridgeHarness({ config = {}, savedState, files = {}, globals = {}, history = {}, lifeRuntime = {} } = {}) {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'qq-audit-bridge-'));
   fs.mkdirSync(path.join(temp, 'src'));
   fs.mkdirSync(path.join(temp, 'state'));
@@ -205,6 +206,8 @@ export async function bridgeHarness({ config = {}, savedState, files = {}, globa
     runPurpose, purposeState, notePurposeTurnEnded, notePurposeOutbound, startPurposeLoop, warmPurposeState,
     // 对话收尾判断：测试可直接调内部函数（不连真 QQ）。
     closeConversationV2, assessClosureV2, closureConfigV2, closureSuppressesWake, noteClosureReopenV2,
+    lifeSettings, defaultWakeConfigV2, refreshAllDefaultWakeConfigsV2,
+    scheduleReplyCheckV2, scheduleProactiveCheckV2, cancelProactiveCheckV2,
     voiceCfg, voiceLibrary, resolveVoicePathForV2, resolveVoicePathForOperator, synthesizeVoiceText,
     voiceBudgetCheck, sendVoiceV2, sendVoiceForV2, assertOutboundAuditOk,
     setMode(value) { currentMode = value; },
@@ -241,6 +244,13 @@ export async function bridgeHarness({ config = {}, savedState, files = {}, globa
     ...adminIdentity, ...roleCard, ...memoryCard, ...biliCard, ...characterStore, ...historyCatchup,
     ...purposeEngine,
     ...conversationClosure,
+    // The real lifecycle controller runs here, with explicit I/O adapters. A
+    // bridge fixture must never read/write the developer's real managed state.
+    createQqLifeRuntime: (options) => createQqLifeRuntime({
+      ...options,
+      apply: (config) => structuredClone(config), revision: () => 0,
+      publish: () => {}, board: () => '', ...lifeRuntime,
+    }),
     // 角色系统在 fixture 里等价于「没有角色」：当前角色 null，记忆卡指向 temp/dsh/surfcore/memory。
     // 不能直接用真实 character-store 的 DSH_HOME（它在主进程 import 时已固定）。
     readCurrentCharacter: () => null,

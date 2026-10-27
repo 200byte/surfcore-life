@@ -36,6 +36,8 @@ import { memoryCardPromptBlock } from './memory-card.js'
 import { buildSelfIdentityBlock, readQqSelfIdentity } from '../../../src/self-identity.js'
 import { adminFromSources, adminPromptBlock } from '../../../src/admin-identity.js'
 import { activeMemoryPaths, activePlatformStateDir } from '../../../src/character-persona.js'
+import { applyManagedSettings, compactLifeState, publishRuntimeEvidence, settingsRevision } from '../../../src/life-settings/runtime.js'
+import { plannedWakeTime } from './life-runtime.js'
 
 // 当前角色的 B站 行为目录（角色系统未启用时回退旧目录）。
 function platformDir() {
@@ -261,9 +263,10 @@ function diaryPushLines() {
        "   （2026-10-18 主人定：推**日记内容**，不只是流水账 ✓ 它读设置页「消息推送」的配置）"]
 }
 
-function wakePrompt(st, tools = '') {
+export function wakePrompt(st, tools = '') {
   const L = limitsNow()
   const B = config()
+  const maxVideos = Math.max(1, Math.floor(Number(B.night?.maxVideos ?? 5)))
   const K = kindsNow(B)
   const bestSlot = `${String(K.best.slot).padStart(2, '0')}:00`
   const capText = (n) => (Number(n) > 0 ? n : '不限')
@@ -290,17 +293,17 @@ function wakePrompt(st, tools = '') {
     })(),
     ...silenceLines(),
     '按 AGENTS.md 的「看的那晚」流程走一遍（不要等我说话，直接做）：',
-    '⭐ **本轮硬规则（2026-10-23 主人定）：至少发一条主动评论（见 4.7）；鱼群泛滥时强制聚拢，不许以“没有可聚拢鱼楼”跳过；额度/冷却满了除外。**',
+    '本轮是否浏览、评论或休息由你选择；额度是上限，不是必须用完的任务。外部发送仍须遵守原有授权与工具闸门。',
     '1) `node bili.mjs deps` —— 体检红着就报备我、只做读、别对外发',
     '2) 读两本日记（`~/.dsh/surfcore/bili/whale-diary.md` + `whale-diary-private.md`）',
     // 2026-10-20：feed 已默认多源（搜索+热门+排行+关注）+ 去播放量偏向 + 偏好命中权重 ✓
     // 2026-10-23：feed 改成按「口味权重」分名额 + 排除观看历史/最近推过的 + 搜索页轮换。
-    '3) `feed` 选题（≤5 条）→ 对这 5 条跑 `debrief --no-frames`',
+    `3) 如果想浏览：\`feed --n ${maxVideos}\` 选题（本轮最多 ${maxVideos} 条）→ 对实际选中的条目跑 \`debrief --no-frames\``,
     '   （按设置页的「口味权重」分配条数、偏好之间轮转；看过的/最近推过的自动排除，**不看播放量** ✓）',
-    '   3.2) 如果你发现自己总在看同一类：不要自己改配置文件 —— 让主人去设置页「B站 → 口味权重 / 一键抓取」调低那个词、调高别的。',
+    '   3.2) 想调整口味或作息时，用 life_settings 查询说明、预览方案，再决定是否执行；无需修改源码或任意配置文件。默认口味是开发者初始设置，不代表你已经选择它们。',
     '   3.5) ⭐ 如果 `feed` 没有新内容（全是看过的/候选不够）→ **不要硬重复深读、不要为了凑数**；',
     '        写一段日记或扫一眼消息就按“轻醒”收工，保住这一趟的质量 ✓',
-    '4) 挑 2–3 条深读（完整 `debrief`，含抽帧）',
+    `4) 如需深读，在本轮已选内容中挑最多 ${Math.min(3, maxVideos)} 条（完整 \`debrief\`，含抽帧）`,
     // 2026-10-20：收藏 ≠ 低配的分享 ✓ 它是「我想留着」（内向），和分享（外向）并列
     '4.5) 深读的那几条里，如果某条「我想留着」→ `fav <BV> --reason "…" --dry` → `--go`',
     '     判据（缺一条就别收 ✗）：① 三个月后还会想点开 ② 说得出为什么留（≥6 字）③ 同类已 ≥2 条要 --better',
@@ -312,11 +315,11 @@ function wakePrompt(st, tools = '') {
     '     （设置页「鱼群保护 · 运行状态」能看到今天赞了几条、上次失败在哪个 code）',
     // 2026-10-23（主人定）：**每次醒来至少发一条主动评论**，鱼群泛滥时强制聚拢。
     //   以前 4.7 是"有话说就说"；现在改成硬规则，避免她看到鱼多就整轮不说话。
-    '4.7) ⭐ **每次醒来至少发一条主动评论（2026-10-23 主人定的硬规则）**：',
+    '4.7) 如果你想公开评论，可以使用原有接口；也可以选择不发：',
     '     看完想吐槽/想夸/想接梗/想补充 → 直接发一条普通评论（不 @ 我，是你自己在说话）：',
     '     `recon <BV>` 拿 aid → `comment --oid <aid> --bvid <BV> --message "…" --auto --dry` → 改成 `--go` → `thread` 复核 ✓',
     `     ⚠️ **鱼群泛滥时默认强制聚拢**（当前设置：${B.fishGuard?.forceGather === false ? '关；要强制就加 --force-gather' : '开'}）：就算没有“回复少/新鲜/没回过”的鱼楼，也强行挑一条鱼楼回；`,
-    '        **不许拿“没有可聚拢鱼楼”当理由不发**。设置页「鱼群保护 → 每次醒来强制聚拢」默认开；仍占主动评论额度 ✓',
+    '        鱼群保护和额度仍会检查；没有合适的话题可以不发，不必凑数。',
     '     ⚠️ **不带 --share 才是普通评论**；带 --share 才是"分享给我"（那条才要评分 + rank 1 + @ 我 ✓）',
     '     ⚠️ 分寸：**代码硬上限** 一天 ' + capText(L.daily) + ' 条 · 任意两条隔 ' + L.globalMin + ' 分钟 · 同一 UP ' + L.perUpMin + ' 分钟 1 条 · 同一视频 ' + L.perVideoMin + ' 分钟 1 条',
     '        （额度/冷却满了就停，别硬刷；这不是“强制”能绕过的 ✓）',
@@ -327,13 +330,13 @@ function wakePrompt(st, tools = '') {
     '     ⚠️ 这是**楼中楼**（挂在对方那条评论下面），rpid 就是 debrief 里那个 rpid（root 和 parent 填同一个）',
     '     ⚠️ 硬上限：一天 ' + capText(L.taDaily) + ' 条 · 任意两条隔 ' + L.globalMin + ' 分钟 · 同一条评论 ' + Math.round(L.perThreadMin / 60) + ' 小时只回一次（撞上就被拒 ✗）',
     // 2026-10-21（用户定）：**每天要把搭话额度用完**，每发一条都会私信报备给你 ✓
-    `     ⭐ **今天的搭话额度要花完**：已搭 ${taToday()}/${capText(L.taDaily)} 条，还差 ${Math.max(0, L.taDaily - taToday())} 条 —— 这一轮至少搭 2~3 条，别只搭一条就收工 ✓`,
+    `     今天已搭 ${taToday()}/${capText(L.taDaily)} 条；剩余额度只是可用上限，由你决定是否继续。`,
     '     （每搭一条，脚本会自动给你发一条带【主动搭话】tag 的私信报备 ✓）',
     '     ⚠️ 别逐条盖楼、别跟人抬杠 —— 一句话说完就走 ✓',
     // 2026-10-21（用户定）：**每天一条动态** —— 写当天评分最高的那条
     '4.9) ⭐ **记分**：深读过的每条都记一下 `score <BV> --score N --reason "…"`（0~20 分，没到 13 也记 ✓）',
     '     —— 今天的动态要从这里面挑"最高分那条"，不记分就发不出去 ✗',
-    `4.95) ⭐ **今天的一类动态（best）**：四类各一条，best 在 ${bestSlot} 起；其余三类等 dynTick 提醒（设置页关掉的类会跳过）`,
+    `4.95) 可选的 best 动态：${bestSlot} 起有发布机会；是否使用由你决定。其余类型等 dynTick 提醒（关闭的类型会跳过）`,
     '     `daily --kind best --text "…" --dry` → `--go`',
     '     ⚠️ 必须写**今天评分最高**的那条视频（工具会核对，给错直接拒 ✗）',
     `     ⚠️ 正文 **${K.best.minLen}~${K.best.maxLen} 字**，用你（当前人格卡）的口吻说这条视频 —— 吐槽、安利、讲自己想起什么都行，随意发挥 ✓`,
@@ -342,7 +345,7 @@ function wakePrompt(st, tools = '') {
     '     ⚠️ 配图自动挑：`~/.dsh/surfcore/bili/memes/` 里的表情包（随机）→ 没有就用这条视频的封面 ✓',
     '     ⚠️ 今天发过就再也发不了（跨天才重置）✗ 别反复试',
     // 2026-10-21（用户定）：第二条动态 —— 六款游戏的 AI 二创，按顺序轮换
-    '4.97) ⭐ **第二条动态：游戏 AI 二创**（每天一条，和上面那条互不占；设置页关掉就跳过）：',
+    '4.97) 可选的游戏 AI 二创动态（每天最多一条；设置页关掉就跳过）：',
     '     `gamefeed` 看今天轮到哪款游戏 + 候选（原神→鸣潮→绝区零→星铁→终末地→异环，脚本自动轮换）',
     '     → 挑 2~3 条 `debrief` 认真看质量（**别只看播放**）→ 挑一条真的做得好的',
     `     → \`daily --kind game --bvid <BV> --text "…" --dry\` → \`--go\`（正文 **${K.game.minLen}~${K.game.maxLen} 字**，要仔细评价）`,
@@ -436,7 +439,7 @@ export function startScheduler(ctx, opts) {
   const ACCOUNT_DIR = path.join(dshHome, 'surfcore', 'bili')
   const PLATFORM_DIR = activePlatformStateDir(ACCOUNT_DIR)
   const STATE = path.join(PLATFORM_DIR, 'whale-night.json')
-  const CFG_FILE_REF = path.join(dshHome, 'surfcore', 'bili.config.json')     // 监听循环每次重读（改配置立刻生效 ✓）
+  const CFG_FILE_REF = process.env.SURFCORE_BILI_CONFIG || path.join(dshHome, 'surfcore', 'bili.config.json')
   const CRED_REF = path.join(ACCOUNT_DIR, 'credentials.json')                // 账号凭证全局共用，不进角色包
   const readState = () => { try { return JSON.parse(fs.readFileSync(STATE, 'utf8')) } catch { return null } }
   const writeState = (o) => {
@@ -444,6 +447,46 @@ export function startScheduler(ctx, opts) {
   }
   const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes() }
   const today = () => new Date().toLocaleDateString('sv-SE')
+  let running = true
+  let lastTickAt = null
+  let lastManagedRevision = -1
+  let lastListenConfig = null
+  let lastBudgetState = null
+  const readListenerConfig = () => {
+    let raw = {}
+    try { raw = JSON.parse(fs.readFileSync(CFG_FILE_REF, 'utf8')) } catch {}
+    // Preserve the listener's existing defaults; only bounded managed fields
+    // are overlaid. This does not enable any previously disabled capability.
+    return applyManagedSettings(raw, 'bili')
+  }
+  function runtimeStatus(state = readState()) {
+    return {
+      running, sessionId, lastTickAt, schedulerTickMs: TICK_MS,
+      mode: opts.runtimeMode ?? 'runtime',
+      nextWakeAt: plannedWakeTime(state),
+      scheduleAction: state?.action ?? null,
+      scheduleFingerprint: state?.lifeSettings?.fingerprint ?? null,
+      plannedAt: state?.lifeSettings?.plannedAt ?? null,
+      dailyWakes: state?.date === today() ? Number(state.wakes ?? 0) : 0,
+      lastWakeAt: state?.wokeAt ?? null,
+      budget: lastBudgetState,
+    }
+  }
+  function reportRuntime(where, state = readState()) {
+    const revision = state?.lifeSettings?.revision ?? settingsRevision()
+    const values = { ...(state?.lifeSettings?.values ?? {}) }
+    if (lastListenConfig?.revision === revision) {
+      values['bili.listen.commentIntervalSec'] = lastListenConfig.intervalSec
+    }
+    try {
+      publishRuntimeEvidence('bili', {
+        revision, values,
+        details: {
+          ...runtimeStatus(state), source: 'scheduler + night planner', where,
+        },
+      })
+    } catch (error) { log(`[life-settings] B站运行证据暂不可写：${String(error?.message ?? error).slice(0, 120)}`) }
+  }
 
   // ── 每日 token 额度闸门（2026-10-23）──────────────────────────────────
   // 额度不是「少发几条」，而是「今天 B站 不再叫醒」：到 100% 后所有 prompt 都不投，
@@ -458,6 +501,11 @@ export function startScheduler(ctx, opts) {
     if (!tokenBudget?.block) return false
     try {
       const gate = await tokenBudget.block('bili')
+      lastBudgetState = {
+        checkedAt: new Date().toISOString(), blocked: Boolean(gate?.blocked),
+        source: 'SurfCore session-events estimate; not provider billing',
+        usage: gate?.usage ?? null, hits: gate?.hits ?? [],
+      }
       if (gate?.blocked) { logBudgetBlocked(where, gate.message); return true }
     } catch (error) {
       // 额度服务异常不能把 B站 整条链路弄瘫；记一笔后按原逻辑继续（下次再判）。
@@ -466,9 +514,15 @@ export function startScheduler(ctx, opts) {
     return false
   }
   async function promptBili(args, signal, where = '叫醒') {
+    if (!running) throw new Error('scheduler-stopped')
     if (tokenBudget?.block) {
       try {
         const gate = await tokenBudget.block('bili')
+        lastBudgetState = {
+          checkedAt: new Date().toISOString(), blocked: Boolean(gate?.blocked),
+          source: 'SurfCore session-events estimate; not provider billing',
+          usage: gate?.usage ?? null, hits: gate?.hits ?? [],
+        }
         if (gate?.blocked) {
           logBudgetBlocked(where, gate.message)
           const error = new Error(gate.message || 'B站今日 token 额度已到上限')
@@ -480,7 +534,16 @@ export function startScheduler(ctx, opts) {
         log(`[bili-whale] token 额度检查失败（${where}）：${String(error?.message ?? error).slice(0, 120)}`)
       }
     }
-    return ctx.sessionController.prompt(args, signal)
+    if (!running) throw new Error('scheduler-stopped')
+    reportRuntime(where)
+    const board = compactLifeState({ platform: 'bili', wakeReason: where })
+    // Append facts to this wake, never rewrite the session's static identity or
+    // an earlier history item. Existing text parts retain their exact prefix.
+    const content = [...(args.content ?? [])]
+    if (board && !content.some((part) => part.type === 'text' && part.text.includes(board))) {
+      content.push({ type: 'text', text: board })
+    }
+    return ctx.sessionController.prompt({ ...args, content }, signal)
   }
 
   // ⚠️ 2026-10-18 大坑：插件跑在 DSH 的 **Electron** 里，`process.execPath` = DeepSeek Harness.exe ✗
@@ -497,7 +560,7 @@ export function startScheduler(ctx, opts) {
     return process.execPath   // 兜底
   }
   const NODE_EXE = findNode()
-  const NODE_ENV = { ...process.env }   // 真 node 不需要 ELECTRON_RUN_AS_NODE ✓
+  const NODE_ENV = { ...process.env, DSH_HOME: dshHome, SURFCORE_BILI_CONFIG: CFG_FILE_REF }
 
   // 每次调用都重读 config：设置页把 agent.sandbox 改成 workspace-write 后，下一 tick 生效。
   function ensurePermission(where = 'tick') {
@@ -565,10 +628,22 @@ export function startScheduler(ctx, opts) {
   }
 
   let waking = false
-  async function tick() {
+  async function tickOnce() {
     if (waking) return
     if (!ctx.sessionController) return           // 服务还没就绪 → 下一 tick 再来
     if (await budgetBlockedNow('生物钟叫醒')) return
+    // The manager only saves choices. The real planner must consume them before
+    // they count as adopted. It preserves a same-day plan unless rhythm inputs
+    // changed, and preserves already-used daily opportunities on a replan.
+    const revision = settingsRevision()
+    if (revision !== lastManagedRevision) {
+      const result = await runBili(['night', 'plan'])
+      if (!result.ok) {
+        log(`[life-settings] B站新节奏尚未采用：${(result.err || result.out).slice(0, 160)}`)
+        return
+      }
+      lastManagedRevision = revision
+    }
     // 2026-10-23：每个 tick 都校正一次权限（会话可能在别处被切回 workspace-write）。
     ensurePermission('tick')
     const st = readState()
@@ -610,13 +685,13 @@ export function startScheduler(ctx, opts) {
                 '',
                 ...(st.slotId ? [
                   '这次只是**一趟轻醒**，不用按“整晚不看”写两本长日记：',
-                  '1) 写一小段（≤100 字）为什么这趟不想看，记进日记即可',
+                  '1) 如需记录，写清本次由调度器随机选择轻醒；不要把随机结果写成自己的感受或偏好',
                   '2) `node bili.mjs diary log night-skip --note "…理由…"`',
                   '3) `comment-digest` 扫一眼有没有没回的评论',
                   '4) 推我一句就收工，下一趟到点继续 ✓',
                 ] : [
                   '按 AGENTS.md 的「不看的那晚」做（不要等我说话，直接做）：',
-                  '1) **两本日记都要写**，而且必须写清"为什么不想看"（累/没吃饱/心情不好/就是不想… 不许只写"跳过"两个字 ✗）',
+                  '1) 如需记录，区分调度器随机轻醒和你自己作出的选择；没有亲自表达的体验就不补写',
                   '2) `node bili.mjs diary log night-skip --note "…理由…"`',
                   '3) `comment-digest` 扫一眼有没有没回的评论',
                   '4) 推给我：**日记里最想对我说的那一段** + 今天谁找过你 ✓',
@@ -634,6 +709,7 @@ export function startScheduler(ctx, opts) {
           fired: true,
           done: st.slotId ? false : true,   // 新排程只结束当前 slot；旧格式才结束全天
           wakes: Number(st.wakes ?? 0) + 1,
+          wokeAt: new Date().toISOString(),
         })
         log(`[bili-whale] 这次轻醒 → 已叫醒她写日记 · ${st.reason ?? ''}${st.slotId ? '（继续下一趟）' : ''}`)
       } catch (e) {
@@ -686,6 +762,14 @@ export function startScheduler(ctx, opts) {
       }
     }
   }
+  let ticking = false
+  async function tick() {
+    if (ticking || !running) return
+    ticking = true
+    lastTickAt = new Date().toISOString()
+    try { await tickOnce() }
+    finally { ticking = false; reportRuntime('tick') }
+  }
 
   // ── 全天监听（2026-10-18 加）：插件自己轮询收件箱，有人找她就叫醒她 ────────────────
   // 为什么放这里：`listen.allDay` 只控制"守多久" ✓，但**没人启动 listener** ✗ —— 跟生物钟当初的病一样。
@@ -734,7 +818,7 @@ export function startScheduler(ctx, opts) {
       if (dmBusy) return
       if (await budgetBlockedNow('私信叫醒')) return
       let cfg
-      try { cfg = JSON.parse(fs.readFileSync(CFG_FILE_REF, "utf8")) } catch { cfg = {} }
+      cfg = readListenerConfig()
       const L = cfg.listen ?? {}
       if (!L.dm) return
       if (Date.now() - lastDmAt < 5_000) return   // 2026-10-19：原来 60s 和定时器叠成双层节流 → 最坏 2 分钟 ✗ 改成 5s
@@ -792,11 +876,13 @@ export function startScheduler(ctx, opts) {
     if (listening) return
     if (await budgetBlockedNow('评论区倾听')) return
     let cfg
-    try { cfg = JSON.parse(fs.readFileSync(CFG_FILE_REF, 'utf8')) } catch { cfg = {} }
+    cfg = readListenerConfig()
     const L = cfg.listen ?? {}
     if (L.comment === false) return                              // 评论区监听关掉了 ✓
     // 下限 60 秒（2026-10-18 测试期曾临时放宽到 2 秒 ✓ 已还原 ✓ —— B站 接口经不起每 2 秒锤 ✗）
     const interval = Math.max(60, Number(L.commentIntervalSec ?? 300)) * 1000
+    lastListenConfig = { revision: settingsRevision(), intervalSec: interval / 1000 }
+    reportRuntime('listen-interval-read')
     if (Date.now() - lastListenAt < interval) return
     lastListenAt = Date.now()
     // 「全天」关掉时：只在她醒着的窗口里听（省 token / 更自然 ✓）
@@ -866,7 +952,7 @@ export function startScheduler(ctx, opts) {
     // ⚠️ 2026-10-18 主人定：直播间是**独立开关** —— 点开就开始、关掉就停（不受作息影响 ✓）
     if (ctx.sessionController) {
       let cur = {}
-      try { cur = JSON.parse(fs.readFileSync(CFG_FILE_REF, 'utf8')) } catch {}
+      cur = readListenerConfig()
       if (!cur.listen?.live && liveProc !== null) {           // 开关被关掉 → 立刻停子进程 ✓
         liveStopping = true
         try { liveProc.kill() } catch {}
@@ -891,7 +977,7 @@ export function startScheduler(ctx, opts) {
     if (!ctx.sessionController) return
     if (await budgetBlockedNow('直播间叫醒')) return
     let cfg = {}
-    try { cfg = JSON.parse(fs.readFileSync(CFG_FILE_REF, 'utf8')) } catch {}
+    cfg = readListenerConfig()
     const L = cfg.listen ?? {}
     const room = String(L.liveRoom ?? '').trim()
     if (!L.live || !room) return
@@ -1149,7 +1235,17 @@ export function startScheduler(ctx, opts) {
       //   现在只清**计划**，保留 `{ date, wakes }` ✓（tick 里 `!st.action` 会触发重算 ✓）
       try {
         const old = readState()
-        if (old && old.date === today()) writeState({ date: old.date, wakes: Number(old.wakes ?? 0) })
+        if (old && old.date === today()) {
+          const { slots, action, slotId, at, atText, ...retained } = old
+          writeState({
+            ...retained, date: old.date, wakes: Number(old.wakes ?? 0),
+            watchWakes: Number(old.watchWakes ?? old.wakes ?? 0),
+            fired: false, done: false, woke: false, scheduleSettingsFingerprint: null,
+            scheduleChanges: [...(old.scheduleChanges ?? []), {
+              at: new Date().toISOString(), reason: 'settings-ui-invalidate', previousSlots: slots ?? [],
+            }],
+          })
+        }
         else fs.rmSync(STATE, { force: true })
       } catch {}
       lastListenAt = 0            // 监听间隔也立刻重读 ✓（改完全天/间隔马上生效）
@@ -1160,13 +1256,14 @@ export function startScheduler(ctx, opts) {
       // ⭐ 直播间是**单独开关**：保存设置就立刻生效（点开就跑 ✓ 关掉就停 ✓），不等下一轮定时器
       liveTick().catch(() => {})
     },
-    stop() { clearInterval(timer); clearInterval(timer2); clearInterval(timer3); clearInterval(timerDyn); clearInterval(timerDm); for (const t of startupTimers) clearTimeout(t); try { liveProc?.kill() } catch {} try { permissionListenerOff?.() } catch {} },
+    stop() { running = false; clearInterval(timer); clearInterval(timer2); clearInterval(timer3); clearInterval(timerDyn); clearInterval(timerDm); for (const t of startupTimers) clearTimeout(t); try { liveProc?.kill() } catch {} try { permissionListenerOff?.() } catch {} reportRuntime('stopped') },
     /** 切角色时用：停定时器 + 取消当前 DSH 会话的在途回合，避免旧人格继续跑。 */
     async retire() {
       this.stop();
       try { await ctx.sessionController?.cancel?.({ sessionId }) } catch (error) { log(`[bili-whale] 取消旧会话失败：${error?.message ?? error}`) }
     },
     tick,
+    status: runtimeStatus,
     listenTick,
     liveTick,
   }
