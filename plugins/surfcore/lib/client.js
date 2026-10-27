@@ -3173,7 +3173,10 @@ window.__ModuleLoader__.load({
           h("span", { style: { opacity: 0.75, fontSize: "12px" } },
             fmt(p.sizeBytes) + " · 端口 " + p.port + " · " + (p.install
               ? p.install.phase + " " + p.install.progress + "%"
-              : p.running ? (p.external ? "● 运行中（外部目录）" : "● 运行中") : p.installed ? "○ 已安装 · 未运行" : "未安装"))),
+              : p.running
+                ? ((p.external ? "● 运行中（外部目录）" : "● 运行中")
+                  + (p.enginePort && p.engineUp === false ? " · ⚠️ 音色引擎未起" : ""))
+                : p.installed ? "○ 已安装 · 未运行" : "未安装"))),
         h("div", { style: { opacity: 0.8, margin: "6px 0", fontSize: "13px" } }, p.about && p.about.summary ? p.about.summary : ""),
         h("div", { style: { display: "flex", gap: "18px", flexWrap: "wrap", fontSize: "12px", opacity: 0.8 } },
           h("ul", { style: { margin: 0, paddingLeft: "18px" } }, ((p.about && p.about.pros) || []).map((x) => h("li", { key: x }, x))),
@@ -3181,6 +3184,10 @@ window.__ModuleLoader__.load({
         p.about && p.about.billing ? h("div", { style: { fontSize: "12px", marginTop: "6px", opacity: 0.75 } },
           p.about.billing, h("br"), p.about.disclaimer || "") : null,
         p.installed && p.dir ? h("div", { style: { fontSize: "12px", marginTop: "4px", opacity: 0.7 } }, "路径：", h("code", null, p.dir)) : null,
+        p.enginePort && p.running && p.engineUp === false
+          ? h("div", { style: { fontSize: "12px", marginTop: "4px", opacity: 0.85 } },
+            `本地音色引擎（GPT-SoVITS ${p.enginePort}）还没起来：点「启动」会自动拉起，约 40 秒后再试；期间发语音会失败。`)
+          : null,
         h("div", { style: { display: "flex", gap: "8px", marginTop: "8px", flexWrap: "wrap", alignItems: "center" } },
           !p.installed ? h(Btn, { disabled: busyId === p.id, onClick: () => act(p.id, "install") }, "安装（" + fmt(p.sizeBytes) + "）") : null,
           p.external ? h("span", { style: { fontSize: "12px", opacity: 0.7 } }, "已在别处安装") : null,

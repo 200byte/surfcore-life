@@ -39,6 +39,11 @@ export const DEFAULT_MANIFESTS = [
     port: 8765,
     startScript: 'run.bat',
     stopScript: 'stop.bat',
+    // 本地音色真正的推理进程：voxd(8765) 只是入口，合成要 GPT-SoVITS(9880)。
+    // 2026-10-27：只起 run.bat 时发语音全 503，用户以为"语音坏了"。
+    engineScript: 'gsv.bat',
+    enginePort: 9880,
+    engineWarmupHint: '本地音色引擎加载约 40 秒，期间发语音会失败，稍等再试',
     // 开发期用本地目录；分发期换成 GitHub Releases 的 zip 链接
     url: process.env.SURFCORE_VOICE_LOCAL_URL || devPackUrl('voice-local'),
     requires: { gpu: true, network: false },
@@ -182,6 +187,7 @@ export function createVoicePacks(cfg) {
     const dir = packDir(cfg, m.id);
     const hasFiles = await exists(path.join(dir, 'config.toml'));
     const portUp = await probePort(m.port);
+    const engineUp = m.enginePort ? await probePort(m.enginePort) : null;
     // 「外部安装」：包里没文件，但端口上已经有服务在跑（开发期手工装的、或者用户自己部署的）。
     // 这种情况当成已安装，只提示路径在别处，不要逼用户再下一份 7GB。
     const external = !hasFiles && portUp;
@@ -193,6 +199,8 @@ export function createVoicePacks(cfg) {
       version: m.version,
       sizeBytes: m.sizeBytes,
       port: m.port,
+      enginePort: m.enginePort ?? null,
+      engineUp,
       requires: m.requires,
       voices: m.voices,
       about: m.about,
@@ -272,6 +280,20 @@ export function createVoicePacks(cfg) {
     if (!(await exists(path.join(dir, 'config.toml')))) throw new Error('还没安装');
     if (await probePort(m.port)) return { ok: true, already: true, port: m.port };
 
+    // 本地音色：先把 GPT-SoVITS(9880) 拉起来，否则入口起来了也只能 503。
+    let engineStarted = false;
+    if (m.engineScript && m.enginePort) {
+      const engineUp = await probePort(m.enginePort);
+      if (!engineUp) {
+        const engineScript = path.join(dir, m.engineScript);
+        if (await exists(engineScript)) {
+          const engineChild = spawn('cmd', ['/c', engineScript], { cwd: dir, detached: true, stdio: 'ignore', windowsHide: true });
+          engineChild.unref();
+          engineStarted = true;
+        }
+      }
+    }
+
     const script = path.join(dir, m.startScript || 'run.bat');
     if (!(await exists(script))) throw new Error(`包内缺少启动脚本：${m.startScript}`);
     const child = spawn('cmd', ['/c', script], {
@@ -285,7 +307,14 @@ export function createVoicePacks(cfg) {
     // 最多等 60 秒（本地包要加载模型）
     for (let i = 0; i < 60; i++) {
       await new Promise((r) => setTimeout(r, 1000));
-      if (await probePort(m.port)) return { ok: true, port: m.port, seconds: i + 1 };
+      if (await probePort(m.port)) {
+        const engineUp = m.enginePort ? await probePort(m.enginePort) : null;
+        return {
+          ok: true, port: m.port, seconds: i + 1,
+          ...(m.enginePort ? { enginePort: m.enginePort, engineUp, engineStarted } : {}),
+          ...(m.enginePort && !engineUp ? { warning: m.engineWarmupHint } : {}),
+        };
+      }
     }
     return { ok: false, error: '启动超时（60 秒内端口没起来）', port: m.port };
   }
