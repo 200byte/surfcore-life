@@ -76,7 +76,9 @@ export const DEFAULT_MANIFESTS = [
 ];
 
 function packsDir(cfg) {
-  const base = cfg?.voicePacks?.dir || path.join(process.cwd(), 'state', 'voice-packs');
+  // 默认目录必须和插件侧一致（插件用 <仓库根>/state/voice-packs）。
+  // 2026-10-27：以前用 process.cwd()，桥接 cwd 不同就会指到两个地方 → "装了却说没装"。
+  const base = cfg?.voicePacks?.dir || path.join(REPO_ROOT, 'state', 'voice-packs');
   return path.resolve(base);
 }
 

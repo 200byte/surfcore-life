@@ -65,7 +65,7 @@ import { ExtensionHost } from './extensions.js';
 import { isLoopbackReq, json, readBody, sameOrigin } from './http-guard.js';
 import { startScheduler } from './scheduler.js';
 import { createTokenBudgetService } from './token-budget.js';
-import { createPetService } from './pet.js';
+import { createPetService, detectElectronPath, installElectronRuntime, ELECTRON_VERSION, electronDownloadUrl } from './pet.js';
 import { createPetChatService } from './pet-chat.js';
 import { createPetPurposeService } from './pet-purpose.js';
 import { createPetApiService } from './pet-api.js';
@@ -1873,6 +1873,8 @@ export function apply(ctx) {
       if (suffix === '/status' && method === 'GET') {
         const petStatus = petService.status();
         const chatStatus = petChat.status();
+        const cfgPet = String(readQqConfig().config?.pet?.appDir || '').trim();
+        const detected = detectElectronPath({ cfgPath: petService.status().electronPath || '', appDir: cfgPet, stateDir: STATE_DIR });
         json(res, 200, {
           ...petStatus,
           chat: chatStatus.chat,
@@ -1884,6 +1886,12 @@ export function apply(ctx) {
           focus: chatStatus.focus,
           events: { ...chatStatus.events, hostFile: petApi.hostFile },
           lastError: chatStatus.lastError,
+          defaults: {
+            zipUrl: 'https://github.com/Mieksido/surfpet/releases/latest/download/pet-pack.zip',
+            electronUrl: electronDownloadUrl(),
+            electronVersion: ELECTRON_VERSION,
+          },
+          electronDetected: detected,
         });
         return;
       }
@@ -1893,6 +1901,19 @@ export function apply(ctx) {
       if (suffix === '/focus') {
         const state = petChat.setFocus(body.enabled === true, body.source || 'settings');
         json(res, 200, { ok: true, focus: state });
+        return;
+      }
+      if (suffix === '/electron-detect') {
+        const cfgPet = String(readQqConfig().config?.pet?.appDir || '').trim();
+        const found = detectElectronPath({ cfgPath: petService.status().electronPath || '', appDir: cfgPet, stateDir: STATE_DIR });
+        if (found) { try { petService.configure({ electronPath: found }); } catch {} }
+        json(res, 200, { ok: Boolean(found), electronPath: found, error: found ? '' : '本机没找到 Electron，可点「下载 Electron」自动装' });
+        return;
+      }
+      if (suffix === '/electron-install') {
+        const r = await installElectronRuntime({ stateDir: STATE_DIR, log: (m) => pluginLog(m) });
+        try { if (r.electronPath) petService.configure({ electronPath: r.electronPath }); } catch {}
+        json(res, 200, r);
         return;
       }
       if (suffix === '/install') { json(res, 200, await petService.install()); return; }

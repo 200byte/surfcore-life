@@ -4,6 +4,21 @@
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 发布规则见 [docs/guides/VERSIONS.md](docs/guides/VERSIONS.md)。
 
+## [0.6.0] - 2026-10-27
+
+### 新增
+
+- **语音安装目录可改**（设置 → 语音）：输入框 + 「保存路径」，写 `voicePacks.dir`；
+  提示"改完重启桥接、已装的包要手动搬过去"。顺手统一了默认目录：`src/voice-packs.js`
+  以前用 `process.cwd()`，桥接 cwd 不同会指到两个地方（表现为"装了却说没装"）。
+- **桌宠安装不再靠手抄地址**：
+  - 安装包地址默认填官方 latest（`surfpet/releases/latest/download/pet-pack.zip`），不会过期；
+  - 「用官方最新版」一键填；
+  - **Electron 自动探测**（配置 → 运行时目录 → 常见安装位置），检测到就写进配置；
+  - **Electron 一键下载**：约 125MB，从 npmmirror 拉 Electron 45.0.0，解压到
+    `~/.dsh/surfcore/pet/runtime/electron-v45.0.0/`，装完自动填路径。
+- 「安装」按钮灰着时，旁边直接写"先在下方填安装包地址，按钮才可点"（以前纯灰，用户不知道缺什么）。
+
 ## [0.5.8] - 2026-10-27
 
 ### 修复

@@ -3106,6 +3106,7 @@ window.__ModuleLoader__.load({
     function VoiceTab({ toast }) {
       const [packs, setPacks] = useState([]);
       const [packsDir, setPacksDir] = useState("");
+      const [dirInput, setDirInput] = useState("");
       const [rules, setRules] = useState(null);
       const [err, setErr] = useState("");
       const [busyId, setBusyId] = useState("");
@@ -3118,6 +3119,7 @@ window.__ModuleLoader__.load({
           const r = await api("/voice/packs");
           setPacks(r.packs || []);
           setPacksDir(r.packsDir || "");
+          setDirInput((prev) => prev || r.packsDir || "");
           setErr("");
           setRules(await api("/voice/rules"));
           const run = (r.packs || []).find((p) => p.running);
@@ -3229,7 +3231,23 @@ window.__ModuleLoader__.load({
           h("div", { style: { fontSize: "12px", opacity: 0.65, marginTop: "6px" } }, "只能运行一个；切换会自动停掉另一个。")),
         packs.map(card),
 
-        packsDir ? h("div", { style: { fontSize: "12px", opacity: 0.7, marginTop: "6px" } }, "安装目录：", h("code", null, packsDir)) : null,
+        h("div", { style: { marginTop: "10px", padding: "10px 12px", border: "1px solid var(--dsw-alias-border-l2)", borderRadius: "10px" } },
+          h("div", { style: { fontSize: "13px", fontWeight: 600 } }, "安装目录"),
+          h("div", { style: { fontSize: "12px", opacity: 0.75, marginTop: "2px" } },
+            "默认在 ~/.dsh/surfcore/state/voice-packs；磁盘紧张或用户目录只读时改到这里。改完要重启桥接，已装的包请手动移动过去。"),
+          h("div", { style: { display: "flex", gap: "8px", marginTop: "8px", flexWrap: "wrap" } },
+            h("input", { className: "qbw-input", value: dirInput, placeholder: packsDir || "D:/voice-packs", style: { flex: "1 1 320px" }, onChange: (e) => setDirInput(e.target.value) }),
+            h(Btn, { kind: "qbw-btn2", onClick: async () => {
+              const next = String(dirInput || "").trim();
+              if (!next) { toast("✗ 目录不能为空"); return; }
+              if (!/^[A-Za-z]:/.test(next) && !next.startsWith("/")) { toast("✗ 请填绝对路径，例如 D:/voice-packs"); return; }
+              try {
+                await api("/config", { method: "POST", body: { qq: { voicePacks: { dir: next.split(String.fromCharCode(92)).join("/") } } } });
+                toast("✓ 已保存；重启桥接后生效（已装的包请先移动到新目录）");
+                await load();
+              } catch (e) { toast(`✗ ${e.message}`); }
+            } }, "保存路径")),
+          h("div", { style: { fontSize: "12px", opacity: 0.65, marginTop: "6px" } }, "当前生效：", h("code", null, packsDir || "（读不到）"))),
 
 
 
@@ -4216,7 +4234,11 @@ window.__ModuleLoader__.load({
         try {
           const r = await api("/pet/status");
           setSt(r);
-          setForm((f) => ({ source: r.source ?? f.source, electronPath: r.electronPath ?? f.electronPath, appDir: r.appDir ?? f.appDir }));
+          setForm((f) => ({
+            source: (r.source && r.source.trim()) ? r.source : (r.installed ? f.source : (r.defaults?.zipUrl || f.source)),
+            electronPath: (r.electronPath && r.electronPath.trim()) ? r.electronPath : (r.electronDetected || f.electronPath),
+            appDir: r.appDir ?? f.appDir,
+          }));
           setErr("");
         } catch (e) { setErr(e.message); }
       }, []);
@@ -4263,6 +4285,7 @@ window.__ModuleLoader__.load({
           st && st.installed ? kv("目录", h("code", { className: "qbw-code" }, st.dir)) : null,
           h("div", { className: "qbw-actions" },
             !st || !st.installed ? h(Btn, { disabled: busy === "install" || !form.source.trim(), onClick: () => act("install") }, busy === "install" ? "安装中…" : "安装") : null,
+            !st || !st.installed ? h("span", { style: { fontSize: "12px", opacity: 0.7 } }, form.source.trim() ? "" : "← 先在下方「安装设置」填安装包地址，按钮才可点") : null,
             st && st.installed && !st.running ? h(Btn, { onClick: () => act("start"), disabled: !!busy }, "启动") : null,
             st && st.installed && st.running ? h(Btn, { kind: "qbw-btn2", onClick: () => act("stop"), disabled: !!busy }, "停止") : null,
             st && st.installed ? h(Btn, { kind: "qbw-btn2", onClick: () => act("remove"), disabled: !!busy }, "卸载") : null)),
@@ -4276,7 +4299,16 @@ window.__ModuleLoader__.load({
           h("div", { className: "qbw-row" }, h("span", { className: "qbw-label" }, "安装目录（可选）"),
             h("input", { className: "qbw-input", value: form.appDir, placeholder: "留空 = ~/.dsh/surfcore/pet/app", onChange: (e) => setForm((f) => ({ ...f, appDir: e.target.value })) })),
           h("div", { className: "qbw-hint", style: { marginTop: "4px" } }, "沙箱 / 只读用户目录的环境里，把安装目录指到可写位置（例如工作区内）。"),
-          h("div", { className: "qbw-actions" }, h(Btn, { kind: "qbw-btn2", disabled: busy === "config", onClick: () => act("config", form) }, busy === "config" ? "保存中…" : "保存设置"))),
+          h("div", { className: "qbw-hint", style: { marginTop: "6px" } },
+            `官方最新包：${st?.defaults?.zipUrl || "https://github.com/Mieksido/surfpet/releases/latest/download/pet-pack.zip"}`),
+          h("div", { className: "qbw-actions" },
+            h(Btn, { kind: "qbw-btn2", onClick: () => setForm((f) => ({ ...f, source: st?.defaults?.zipUrl || "https://github.com/Mieksido/surfpet/releases/latest/download/pet-pack.zip" })) }, "用官方最新版"),
+            h(Btn, { kind: "qbw-btn2", disabled: busy === "electron-detect", onClick: () => act("electron-detect") }, busy === "electron-detect" ? "检测中…" : "检测 Electron"),
+            h(Btn, { kind: "qbw-btn2", disabled: busy === "electron-install", onClick: () => act("electron-install") },
+              busy === "electron-install" ? "下载中…（约 125MB，2~5 分钟）" : `下载 Electron ${st?.defaults?.electronVersion || "45.0.0"}`),
+            h(Btn, { kind: "qbw-btn2", disabled: busy === "config", onClick: () => act("config", form) }, busy === "config" ? "保存中…" : "保存设置")),
+          h("div", { className: "qbw-hint", style: { marginTop: "4px" } },
+            st?.electronDetected ? `已检测到 Electron：${st.electronDetected}` : "没检测到 Electron：点「下载 Electron」自动装到 ~/.dsh/surfcore/pet/runtime（约 125MB）")),
         // ── 桌宠对话：人设 / 记忆 / 模型都来自当前角色，这里只管长短与开关 ──
         h("div", { className: "qbw-card", style: { marginTop: "10px" } },
           h("h4", null, "对话",
