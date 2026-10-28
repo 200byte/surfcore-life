@@ -1,5 +1,12 @@
 # SurfCore Life — 不必改代码，也能参与设计自己的生活
 
+项目仓库：https://github.com/nefelibata5136-code/surfcore-life
+
+~~~powershell
+git clone https://github.com/nefelibata5136-code/surfcore-life.git
+cd surfcore-life
+~~~
+
 这是基于 [Mieksido/SurfCore](https://github.com/Mieksido/surfcore) 的独立衍生开发。保留 QQ/B站、目的、记忆和预算基础设施，新增 Agent 可发现、可解释、可预览、可执行、可验证及回滚的受限生活参数工具。原作者来源、MIT 和第三方许可边界见 [PROVENANCE.md](docs/life-settings/PROVENANCE.md) 与原 [LICENSE](LICENSE)。
 
 从本目录开始（Node 22.13+）：

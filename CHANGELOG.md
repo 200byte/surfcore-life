@@ -4,7 +4,7 @@
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 发布规则见 [docs/guides/VERSIONS.md](docs/guides/VERSIONS.md)。
 
-## [0.7.0] - 2026-10-27（本地独立衍生，尚未发布）
+## [0.7.0] - 2026-10-27（独立衍生版）
 
 ### Agent 自主生活参数
 

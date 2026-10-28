@@ -1,6 +1,6 @@
 # 本轮交付与验收
 
-独立目录：本机 Documents/Codex/surfcore-life。分支：codex/agent-life-settings。基于上游 commit 8c55cda75b7374182a16428372ad42e451190de8，本地衍生版本 0.7.0。原 LICENSE 保留，无远程创建、发布或 push。
+独立目录：本机 Documents/Codex/surfcore-life。原开发分支：codex/agent-life-settings。基于上游 commit 8c55cda75b7374182a16428372ad42e451190de8，衍生版本 0.7.0。原LICENSE保留；开发结束后用户追加授权创建公开仓库并推送，发布入口为https://github.com/nefelibata5136-code/surfcore-life。
 
 ## 已交付
 
@@ -71,7 +71,7 @@ QQ：用户随后明确取消安装网关并要求跳过，本轮不安装、不
 
 ## 保存、导出与发布
 
-本地记录已可靠保存；隔离记录已通过本地导出完整性/幂等验收。新来源明确登记为surfcore-life-settings，独立适配器已就绪，共享统一导出器的collector尚未安装。GitHub未发布，dots未实际读到；没有后台同步任务。见 [EXPORT.md](EXPORT.md)。
+本地记录已可靠保存；隔离记录已通过本地导出完整性/幂等验收。新来源明确登记为surfcore-life-settings，独立适配器已就绪，共享统一导出器的collector尚未安装。源码按后续明确授权发布到GitHub；本地活动记录、导出与实模运行原文不随源码上传，dots未实际读到；没有后台同步任务。见 [EXPORT.md](EXPORT.md)。
 
 原LICENSE和第三方边界见 [PROVENANCE.md](PROVENANCE.md)。本地阶段提交包括：
 

@@ -24,7 +24,7 @@ node scripts/export-life-settings.mjs --root "C:\path\surfcore-life" --dsh-home 
 
 ## 与现有统一导出器衔接
 
-本轮已只读检查 `<local-study-export>/README.md` 和 `export_local.py`。该入口使用硬编码的来源collector，尚无通用插件注册表；不能假定新数据会被自动发现。本轮未修改该共享导出器，也未运行其扫描或发布流程。
+本轮已只读检查本地统一导出器的README.md和export_local.py。该入口使用硬编码的来源collector，尚无通用插件注册表；不能假定新数据会被自动发现。本轮未修改该共享导出器，也未运行其扫描或发布流程。
 
 此来源明确登记为：
 
